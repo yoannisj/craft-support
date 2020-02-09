@@ -13,8 +13,10 @@ namespace lukeyouell\support\variables;
 use lukeyouell\support\Support;
 use lukeyouell\support\elements\Message;
 use lukeyouell\support\elements\Ticket;
+use lukeyouell\support\elements\Answer;
 use lukeyouell\support\elements\db\MessageQuery;
 use lukeyouell\support\elements\db\TicketQuery;
+use lukeyouell\support\elements\db\AnswerQuery;
 
 use Craft;
 
@@ -52,5 +54,13 @@ class SupportVariable
     public function getTicketStatusById($id)
     {
         return Support::getInstance()->ticketStatusService->getTicketStatusById($id);
+    }
+
+    public function answers( array $criteria = []): AnswerQuery
+    {
+        $query = Answer::find();
+        Craft::configure($query, $criteria);
+
+        return $query;
     }
 }

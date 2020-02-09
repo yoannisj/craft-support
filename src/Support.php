@@ -30,6 +30,10 @@ use craft\web\twig\variables\CraftVariable;
 
 use yii\base\Event;
 
+/**
+ *
+ */
+
 class Support extends Plugin
 {
     // Static Properties
@@ -51,7 +55,8 @@ class Support extends Plugin
      *
      * @var string
      */
-    public $schemaVersion = '0.1.0';
+
+    public $schemaVersion = '1.1.0';
 
     // Public Methods
     // =========================================================================
@@ -66,9 +71,15 @@ class Support extends Plugin
             UrlManager::class,
             UrlManager::EVENT_REGISTER_CP_URL_RULES,
             function (RegisterUrlRulesEvent $event) {
+
                 $event->rules['support/tickets'] = 'support/tickets/index';
                 $event->rules['support/tickets/new'] = 'support/tickets/new';
                 $event->rules['support/tickets/<ticketId:\d+>'] = 'support/tickets/view';
+
+                $event->rules['support/answers'] = 'support/answers/index';
+                $event->rules['support/answers/<answerId:\d+>'] = 'support/answers/edit';
+                $event->rules['support/answers/<answerId:\d+>/<siteHandle:{handle}>'] = 'support/answers/edit';
+                $event->rules['support/answers/new/<siteHandle:{handle}>'] = 'support/answers/edit';
 
                 $event->rules['support/settings/general'] = 'support/settings/index';
 
@@ -102,6 +113,8 @@ class Support extends Plugin
                 $event->permissions[$this->name] = [
                     'support-manageTickets' => ['label' => \Craft::t('support', 'Manage Tickets')],
                     'support-deleteTickets' => ['label' => \Craft::t('support', 'Delete Tickets')],
+                    'support-manageAnswers' => ['label' => \Craft::t('support', 'Manage Answers')],
+                    'support-deleteAnswers' => ['label' => \Craft::t('support', 'Delete Answers')],
                 ];
             }
         );
@@ -142,6 +155,7 @@ class Support extends Plugin
             'messageService' => \lukeyouell\support\services\MessageService::class,
             'ticketService' => \lukeyouell\support\services\TicketService::class,
             'ticketStatusService' => \lukeyouell\support\services\TicketStatusService::class,
+            'answerService' => \lukeyouell\support\services\AnswerService::class,
         ]);
     }
 
@@ -156,7 +170,16 @@ class Support extends Plugin
             'url'   => 'support/tickets',
         ];
 
-        if (Craft::$app->getUser()->getIsAdmin()) {
+        if (Craft::$app->getUser()->checkPermission('support-manageAnswers'))
+        {
+            $ret['subnav']['answers'] = [
+                'label' => 'Answers',
+                'url' => 'support/answers',
+            ];
+        }
+
+        if (Craft::$app->getUser()->getIsAdmin())
+        {
             $ret['subnav']['settings'] = [
                 'label' => 'Settings',
                 'url'   => 'support/settings/general',

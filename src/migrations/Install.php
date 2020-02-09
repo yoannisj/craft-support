@@ -156,6 +156,19 @@ class Install extends Migration
                     'emailId'        => $this->integer()->notNull(),
                 ]
             );
+
+            $this->createTable(
+                '{{%support_answers}}',
+                [
+                    'id'             => $this->primaryKey(),
+                    'dateCreated'    => $this->dateTime()->notNull(),
+                    'dateUpdated'    => $this->dateTime()->notNull(),
+                    'uid'            => $this->uid(),
+                ]
+            );
+
+            $contentTable = Craft::$app->getContent()->contentTable;
+            $this->addColumn($contentTable, 'support_answer_text', 'text');
         }
 
         return $tablesCreated;
@@ -173,6 +186,8 @@ class Install extends Migration
 
         $this->addForeignKey(null, '{{%support_ticketstatus_emails}}', ['emailId'], '{{%support_emails}}', ['id'], 'CASCADE', 'CASCADE');
         $this->addForeignKey(null, '{{%support_ticketstatus_emails}}', ['ticketStatusId'], '{{%support_ticketstatuses}}', ['id'], 'CASCADE', 'CASCADE');
+
+        $this->addForeignKey(null, '{{%support_answers}}', ['id'], '{{%elements}}', ['id'], 'CASCADE');
     }
 
     protected function dropForeignKeys()
@@ -190,6 +205,10 @@ class Install extends Migration
         $this->dropTable('{{%support_tickets}}');
         $this->dropTable('{{%support_ticketstatuses}}');
         $this->dropTable('{{%support_ticketstatus_emails}}');
+        $this->dropTable('{{%support_answers}}');
+
+        $contentTable = Craft::$app->getContent()->contentTable;
+        $this->dropColumn($contentTable, 'support_answer_text');
     }
 
     protected function insertDefaultData()
