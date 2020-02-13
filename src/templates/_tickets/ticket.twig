@@ -26,6 +26,29 @@
 
 {% do view.registerAssetBundle("lukeyouell\\support\\assetbundles\\TicketBundle") %}
 
+{% set allAnswers = craft.support.answers({ siteId: null }).all() %}
+{% set answersPerLanguage = allAnswers | group('site.language') %}
+{% set answerLanguages = answersPerLanguage | keys %}
+
+{% set languageOptions = [] %}
+{% for language in answerLanguages %}
+  
+  {% set langParts = language | split('-') %}
+  {% set lang = langParts[0] %}
+  {% set geo = langParts[1] ?? null %}
+
+  {% set label = lang | upper %}
+  {% if geo is not empty %}
+    {% set label = label ~ ' (' ~ geo ~ ')' %}
+  {% endif %}
+
+  {% set languageOptions = languageOptions | merge([{
+    value: language,
+    label: label,
+  }]) %}
+
+{% endfor %}
+
 {% block content %}
   <div class="new-message">
     <form method="post" accept-charset="UTF-8">
@@ -41,31 +64,86 @@
           value: ticket.id|hash,
       })}}
 
-      {{ forms.textareaField({
-          first:       true,
-          required:    true,
-          id:          'message',
-          name:        'message',
-          placeholder: 'Post a message...',
-      })}}
+      <div class="field">
+        <div class="heading" style="overflow: hidden;">
+          <label for="message" style="float: left; margin-top: 7px; font-size: 1em;">Answer</label>
+          <div class="flex" style="float: right;">
+            <div>
+              {{ forms.select({
+                id: 'answer-language',
+                name: 'answerLanguage',
+                options: languageOptions,
+                toggle: true,
+                targetPrefix: 'answers-',
+              }) }}
+            </div>
 
-      <div class="new-message-controls">
-        {% if settings.attachments and volume %}
-          {% include "_components/fieldtypes/Assets/input" with {
-            id:                   'attachments',
-            fieldId:              'attachments',
-            name:                 'attachments',
-            selectionLabel:       'Attachment',
-            elementType:          assetElementType,
-            sourceElementId:      volume.id,
-            viewMode:             'list',
-            limit:                4,
-            defaultFieldLayoutId: volume.fieldLayoutId,
-            hideSidebar:          true,
-          } %}
-        {% endif %}
+            <div>
+              {% for language, langAnswers in answersPerLanguage %}
 
-        <input class="btn submit" type="submit" value="Post message">
+                {% set answerOptionsId = ('answer-' ~ language) | lower %}
+                {% set answerOptionsName = 'answer[' ~ language ~ ']' %}
+
+                {% set answerOptions = [{
+                  value: null,
+                  label: 'Select Answer…',
+                }] %}
+
+                {% for answer in langAnswers %}
+                  {% set answerOptions = answerOptions | merge([{
+                    value: answer.id,
+                    label: answer.title,
+                  }]) %}
+                {% endfor %}
+
+                {{ forms.select({
+                  id: answerOptionsId,
+                  class: 'answer-select',
+                  name: answerOptionsName,
+                  options: answerOptions,
+                }) }}
+
+              {% endfor %}
+            </div>
+          </div>
+
+          {% for answer in allAnswers %}
+            <textarea class="answer-text hidden" data-answer-id="{{ answer.id }}" readonly>
+              {{ answer.text }}
+            </textarea>
+          {% endfor %}
+
+        </div>
+
+        <div class="input">
+          {{ forms.textareaField({
+              first:       true,
+              required:    true,
+              id:          'message',
+              name:        'message',
+              placeholder: 'Post a message...',
+          })}}
+
+          <div class="new-message-controls">
+            {% if settings.attachments and volume %}
+              {% include "_components/fieldtypes/Assets/input" with {
+                id:                   'attachments',
+                fieldId:              'attachments',
+                name:                 'attachments',
+                selectionLabel:       'Attachment',
+                elementType:          assetElementType,
+                sourceElementId:      volume.id,
+                viewMode:             'list',
+                limit:                4,
+                defaultFieldLayoutId: volume.fieldLayoutId,
+                hideSidebar:          true,
+              } %}
+            {% endif %}
+
+            <input class="btn submit" type="submit" value="Post message">
+          </div>
+        </div>
+  
       </div>
     </form>
   </div>

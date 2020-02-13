@@ -1,3 +1,4 @@
+
 /* Craft overrides */
 
 #main-container #main #main-content #content-container #content {
@@ -91,4 +92,11 @@
 .message-attachments {
   font-size: 14px;
   line-height: 1.6;
+}
+
+#main-content .message-container {
+  position: static;
+  top: auto;
+  width: auto;
+  height: auto;
 }
