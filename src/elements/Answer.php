@@ -16,6 +16,7 @@ use craft\base\Element;
 use craft\elements\db\ElementQueryInterface;
 use craft\elements\actions\Restore;
 use craft\helpers\StringHelper;
+use craft\helpers\UrlHelper;
 
 
 use lukeyouell\support\elements\db\AnswerQuery;
@@ -108,6 +109,21 @@ class Answer extends Element
         ];
     }
 
+    /**
+     * @inheritdoc
+     */
+
+    protected static function defineSources(string $context = null): array
+    {
+        return [
+            [
+                'key' => '*',
+                'label' => 'All Answers',
+                'criteria' => []
+            ],
+        ];
+    }
+
     // =Properties
     // ========================================================================
 
@@ -117,8 +133,43 @@ class Answer extends Element
 
     public $text = '';
 
+    /**
+     * @var int
+     */
+
+    public $authorId;
+
     // =Public Methods
     // ========================================================================
+
+    // =Fields
+    // ------------------------------------------------------------------------
+
+    /**
+     * @inheritdoc
+     */
+
+    public function extraFields()
+    {
+        $fields = parent::extraFields();
+
+        $fields[] = 'author';
+
+        return $fields;
+    }
+
+    /**
+     * Getter method for the `author` field
+     */
+
+    public function getAuthor()
+    {
+        if ($this->authorId !== null) {
+            return Craft::$app->getUsers()->getUserById($this->authorId);            
+        }
+
+        return null;
+    }
 
     // =Editing
     // ------------------------------------------------------------------------
@@ -135,7 +186,6 @@ class Answer extends Element
 
         return Craft::$app->getUser()->checkPermission('supports-manageAnswers');
     }
-
 
     /**
      * @inheritdoc
@@ -184,13 +234,18 @@ class Answer extends Element
     }
 
     /**
-     * 
+     * @inheritdoc
      */
 
     public function getCpEditUrl()
     {
-        $siteSegment = $this->siteId ? '/'.$this->getSite()->handle : '';
-        return 'support/answers'.$this->id.$siteSegment;
+        $url = UrlHelper::cpUrl('support/answers/'.$this->id);
+
+        if (Craft::$app->getIsMultisite()) {
+            $url .= '/' . $this->getSite()->handle;
+        }
+
+        return $url;
     }
 
     // =Events

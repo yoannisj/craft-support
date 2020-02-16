@@ -77,9 +77,9 @@ class Support extends Plugin
                 $event->rules['support/tickets/<ticketId:\d+>'] = 'support/tickets/view';
 
                 $event->rules['support/answers'] = 'support/answers/index';
-                $event->rules['support/answers/<answerId:\d+>'] = 'support/answers/edit';
-                $event->rules['support/answers/<answerId:\d+>/<siteHandle:{handle}>'] = 'support/answers/edit';
-                $event->rules['support/answers/new/<siteHandle:{handle}>'] = 'support/answers/edit';
+                $event->rules['support/answers/new/<siteHandle:{handle}>'] = 'support/answers/edit-answer';
+                $event->rules['support/answers/<answerId:\d+>'] = 'support/answers/edit-answer';
+                $event->rules['support/answers/<answerId:\d+>/<siteHandle:{handle}>'] = 'support/answers/edit-answer';
 
                 $event->rules['support/settings/general'] = 'support/settings/index';
 

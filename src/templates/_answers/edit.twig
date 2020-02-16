@@ -72,14 +72,14 @@
         </li>
         {% if not isNewAnswer %}
           <li>
-            <a class="formsubmit" data-param="duplicate" data-value="1" data-redirect="{{ (continueEditingUrl~'#')|hash }}">{{ "Save as a new answer"|t('app') }}</a>
+            <a class="formsubmit" data-param="duplicate" data-value="1" data-redirect="{{ (continueEditingUrl~'#')|hash }}">{{ "Save as a new answer" }}</a>
           </li>
         {% endif %}
       </ul>
       {% if not isNewAnswer %}
         <hr>
         <ul>
-          <li><a class="formsubmit error" data-action="support/answers/delete-answer" data-confirm="{{ 'Are you sure you want to delete this answer?'|t('app') }}" data-redirect="{{ 'answers#'|hash }}">{{ 'Delete'|t('app') }}</a></li>
+          <li><a class="formsubmit error" data-action="support/answers/delete-answer" data-confirm="{{ 'Are you sure you want to delete this answer?' }}" data-redirect="{{ 'support/answers'|hash }}">{{ 'Delete'|t('app') }}</a></li>
         </ul>
       {% endif %}
     </div>
@@ -88,16 +88,26 @@
 
 {% block content %}
 
-  {{ actionInput('support/answers/save') }}
+  {{ actionInput('support/answers/save-answer') }}
   {{ redirectInput('support/answers') }}
 
+  {% if answer.id %}
+    {{ hiddenInput('answerId', answer.id) }}
+  {% endif %}
+
+  {% if craft.app.getIsMultiSite() %}
+    {{ hiddenInput('siteId', answer.siteId) }}
+  {% endif %}
+
   <div id="fields">
+
     {{ forms.textField({
         first:       true,
         label:       'Title' | t('app'),
         id:          'title',
         name:        'title',
         placeholder: 'Title' | t('app'),
+        value:       answer.title,
         autofocus:   true,
         required:    true,
     }) }}
@@ -113,6 +123,9 @@
         required:    true,
         rows: 4,
     }) }}
+
+    {% hook "cp.support.answers.edit.fields" %}
+
   </div>
 
 {% endblock %}
@@ -128,18 +141,30 @@
     }) }}
   </div>
 
-  {% if answer.id %}
-    <div class="meta read-only">
-        <div class="data">
-            <h5 class="heading">{{ "Date Created"|t('app') }}</h5>
-            <div class="value">{{ answer.dateCreated|datetime('short') }}</div>
+  <div class="meta read-only">
+
+    {% if answer.authorId %}
+      <div class="data">
+        <div class="heading">
+          Author
         </div>
-        <div class="data">
-            <h5 class="heading">{{ "Date Updated"|t('app') }}</h5>
-            <div class="value">{{ answer.dateUpdated|datetime('short') }}</div>
+        <div class="value">
+          <a href="{{ ticket.author.cpEditUrl }}">{{ answer.author.name }}</a>
         </div>
-    </div>
-  {% endif %}
+      </div>
+    {% endif %}
+
+    {% if answer.id %}
+      <div class="data">
+          <h5 class="heading">{{ "Date Created"|t('app') }}</h5>
+          <div class="value">{{ answer.dateCreated|datetime('short') }}</div>
+      </div>
+      <div class="data">
+          <h5 class="heading">{{ "Date Updated"|t('app') }}</h5>
+          <div class="value">{{ answer.dateUpdated|datetime('short') }}</div>
+      </div>
+    {% endif %}
+  </div>
 
   {% hook "cp.support.answers.edit.details" %}
 

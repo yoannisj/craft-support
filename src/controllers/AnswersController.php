@@ -22,7 +22,7 @@ use craft\base\Element;
 use craft\elements\Asset;
 use craft\web\Controller;
 use craft\web\Response;
-use craft\helpers\Template;
+use craft\helpers\UrlHelper;
 
 use lukeyouell\support\Support;
 use lukeyouell\support\elements\Answer;
@@ -87,7 +87,7 @@ class AnswersController extends Controller
      * @return \craft\web\Response
      */
 
-    public function actionEdit( string $answerId = null, string $siteHandle = null, Answer $answer = null ): Response
+    public function actionEditAnswer( string $answerId = null, string $siteHandle = null, Answer $answer = null ): Response
     {
         $variables = [
             'settings' => $this->settings,
@@ -106,13 +106,28 @@ class AnswersController extends Controller
         $site = $variables['site'];
         $answer = $variables['answer'];
 
+        // body class
         $variables['bodyClass'] = 'edit-answer site--' . $site->handle;
 
+        // page title
         if ($answer->id === null) {
             $variables['title'] = 'Create new Answer';
         } else {
             $variables['docTitle'] = $variables['title'] = trim($answer->title) ?: 'Edit Answer';
         }
+
+        // Breadcrumbs
+
+        $variables['crumbs'] = [
+            [
+                'label' => 'Support',
+                'url' => UrlHelper::url('support')
+            ],
+            [
+                'label' => 'Answers',
+                'url' => UrlHelper::url('support/answers')
+            ],
+        ];
 
         // get site segment for url variables
         $siteSegment = '';
@@ -143,7 +158,7 @@ class AnswersController extends Controller
      *
      */
 
-    public function actionSave()
+    public function actionSaveAnswer()
     {
         $this->requirePostRequest();
 
@@ -240,7 +255,7 @@ class AnswersController extends Controller
      *
      */
 
-    public function actionDelete()
+    public function actionDeleteAnswer()
     {
         $this->requirePostRequest();
 
@@ -281,7 +296,7 @@ class AnswersController extends Controller
 
         Craft::$app->getSession()->setNotice('Answer deleted.');
 
-        return $this->redirectToPostedUrl($answer);
+        return $this->redirectToPostedUrl();
     }
 
     // =Protected Methods
@@ -372,7 +387,7 @@ class AnswersController extends Controller
             {
                 $answer = new Answer();
                 $answer->enabled = true;
-                $answer->siteId = $site->id;
+                $answer->siteId = $site->id;             
             }
 
             $variables['answer'] = $answer;
@@ -413,6 +428,7 @@ class AnswersController extends Controller
         $answerId = $request->getBodyParam('answerId');
         $siteId = $request->getBodyParam('siteId');
 
+
         if ($answerId)
         {
             $answer = Support::getInstance()->answerService->getAnswerById($answerId, $siteId);
@@ -444,6 +460,9 @@ class AnswersController extends Controller
         $answer->enabled = (bool)$request->getBodyParam('enabled', $answer->enabled);
         $answer->title = $request->getBodyParam('title', $answer->title);
         $answer->text = $request->getBodyParam('text', '');
+
+        $currentUser = Craft::$app->getUser();
+        $answer->authorId = $request->getBodyParam('authorId', $currentUser ? $currentUser->id : null);
 
         return $answer;
     }
