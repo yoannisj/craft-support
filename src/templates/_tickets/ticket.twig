@@ -26,125 +26,22 @@
 
 {% do view.registerAssetBundle("lukeyouell\\support\\assetbundles\\TicketBundle") %}
 
-{% set allAnswers = craft.support.answers({ siteId: null }).all() %}
-{% set answersPerLanguage = allAnswers | group('site.language') %}
-{% set answerLanguages = answersPerLanguage | keys %}
-
-{% set languageOptions = [] %}
-{% for language in answerLanguages %}
-  
-  {% set langParts = language | split('-') %}
-  {% set lang = langParts[0] %}
-  {% set geo = langParts[1] ?? null %}
-
-  {% set label = lang | upper %}
-  {% if geo is not empty %}
-    {% set label = label ~ ' (' ~ geo ~ ')' %}
-  {% endif %}
-
-  {% set languageOptions = languageOptions | merge([{
-    value: language,
-    label: label,
-  }]) %}
-
-{% endfor %}
-
 {% block content %}
   <div class="new-message">
     <form method="post" accept-charset="UTF-8">
       {{ csrfInput() }}
 
-      {{ forms.hidden({
-          name:  'action',
-          value: 'support/messages/new-message',
-      })}}
+      {{ actionInput('support/messages/new-message') }}
 
       {{ forms.hidden({
-          name:  'ticketId',
+          name: 'ticketId',
           value: ticket.id|hash,
       })}}
 
-      <div class="field">
-        <div class="heading" style="overflow: hidden;">
-          <label for="message" style="float: left; margin-top: 7px; font-size: 1em;">Answer</label>
-          <div class="flex" style="float: right;">
-            <div>
-              {{ forms.select({
-                id: 'answer-language',
-                name: 'answerLanguage',
-                options: languageOptions,
-                toggle: true,
-                targetPrefix: 'answers-',
-              }) }}
-            </div>
+      {% include "support/_tickets/includes/message-field" with {
+        isFirst: true,
+      } %}
 
-            <div>
-              {% for language, langAnswers in answersPerLanguage %}
-
-                {% set answerOptionsId = ('answer-' ~ language) | lower %}
-                {% set answerOptionsName = 'answer[' ~ language ~ ']' %}
-
-                {% set answerOptions = [{
-                  value: null,
-                  label: 'Select Answer…',
-                }] %}
-
-                {% for answer in langAnswers %}
-                  {% set answerOptions = answerOptions | merge([{
-                    value: answer.id,
-                    label: answer.title,
-                  }]) %}
-                {% endfor %}
-
-                {{ forms.select({
-                  id: answerOptionsId,
-                  class: 'answer-select',
-                  name: answerOptionsName,
-                  options: answerOptions,
-                }) }}
-
-              {% endfor %}
-            </div>
-          </div>
-
-          {% for answer in allAnswers %}
-            <textarea class="answer-text hidden" data-answer-id="{{ answer.id }}" readonly>
-              {{ answer.text }}
-            </textarea>
-          {% endfor %}
-
-        </div>
-
-        <div class="input">
-          {{ forms.textareaField({
-              first:       true,
-              required:    true,
-              id:          'message',
-              name:        'message',
-              placeholder: 'Post a message...',
-          })}}
-
-          <div class="new-message-controls">
-            {% if settings.attachments and volume %}
-              {% include "_components/fieldtypes/Assets/input" with {
-                id:                   'attachments',
-                fieldId:              'attachments',
-                name:                 'attachments',
-                selectionLabel:       'Attachment',
-                elementType:          assetElementType,
-                sourceElementId:      volume.id,
-                viewMode:             'list',
-                limit:                4,
-                defaultFieldLayoutId: volume.fieldLayoutId,
-                hideSidebar:          true,
-              } %}
-            {% endif %}
-
-            <input class="btn submit" type="submit" value="Post message">
-          </div>
-        </div>
-  
-      </div>
     </form>
   </div>
 
@@ -162,13 +59,13 @@
         {{ csrfInput() }}
 
         {{ forms.hidden({
-            name:  'action',
-            value: 'support/tickets/save',
+          name:  'action',
+          value: 'support/tickets/save',
         })}}
 
         {{ forms.hidden({
-            name:  'ticketId',
-            value: ticket.id|hash,
+          name:  'ticketId',
+          value: ticket.id|hash,
         })}}
 
         {% set statusOptions = [] %}
@@ -177,14 +74,43 @@
         {% endfor %}
 
         {{ forms.selectField({
-            label:   'Ticket Status',
-            id:      'ticketStatusId',
-            name:    'ticketStatusId',
-            value:   ticket.ticketStatusId,
-            options: statusOptions,
-        })}}
+          label:   'Ticket Status',
+          id:      'ticketStatusId',
+          name:    'ticketStatusId',
+          value:   ticket.ticketStatusId,
+          options: statusOptions,
+        }) }}
 
-        <input class="btn submit" type="submit" value="Update ticket">
+        {# {% if ticket.orderId %}
+          <input type="hidden" name="recipientId" value="{{ ticket.recipientId }}" />
+        {% else %}
+          {{ forms.elementSelectField({
+            label: "Recipient",
+            id: 'recipientId',
+            name: 'recipientId',
+            elementType: 'craft\\elements\\User',
+            selectionLabel: "Choose"|t('app'),
+            criteria: [],
+            limit: 1,
+            elements: (ticket.recipientId ? [ ticket.recipient ] : []),
+          }) }}
+        {% endif %}
+
+        {% if craft.app.plugins.isPluginEnabled('commerce') %}
+          {{ forms.elementSelectField({
+            label: "Order" | t('app'),
+            id: 'orderId',
+            name: 'orderId',
+            elementType: 'craft\\commerce\\elements\\Order',
+            selectionLabel: "Choose"|t('app'),
+            criteria: [],
+            limit: 1,
+            elements: (ticket.orderId ? [ ticket.order ] : []),
+          }) }}
+        {% endif %} #}
+        <div style="padding-bottom: 10px">
+          <input style="margin-top: 10px;" class="btn submit" type="submit" value="Update ticket">
+        </div>
       </div>
     </form>
 
@@ -210,13 +136,46 @@
       </div>
     </div>
 
-    {% if currentUser.can('support-manageTickets') %}
+    <div class="data">
+      <div class="heading">
+        Author
+      </div>
+      <div class="value">
+        <a href="{{ ticket.author.cpEditUrl }}">{{ ticket.author.name }}</a>
+      </div>
+    </div>
+
+    {% if craft.app.plugins.isPluginEnabled('commerce') %}
+      {% set ticketOrder = ticket.order %}
+      {% if ticketOrder %}
+        <div class="data">
+          <div class="heading">
+            Order
+          </div>
+          <div class="value">
+            <a href="{{ ticketOrder.cpEditUrl }}">{{ ticketOrder.reference }}</a>
+          </div>
+        </div>
+      {% elseif ticket.deletedOrderReference %}
+        <div class="data">
+          <div class="heading">
+            Order (Deleted)
+          </div>
+          <div class="value">
+            {{ ticket.deletedOrderReference }}
+          </div>
+        </div>
+      {% endif %}
+    {% endif %}
+
+    {% set ticketRecipient = ticket.recipient %}
+    {% if ticketRecipient %}
       <div class="data">
         <div class="heading">
-          Author
+          Recipient
         </div>
         <div class="value">
-          <a href="{{ ticket.author.cpEditUrl }}">{{ ticket.author.name }}</a>
+          <a href="{{ ticketRecipient.cpEditUrl }}">{{ ticketRecipient.name }}</a>
         </div>
       </div>
     {% endif %}

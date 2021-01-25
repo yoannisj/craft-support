@@ -32,6 +32,13 @@ use craft\base\VolumeInterface;
  */
 class Settings extends Model
 {
+    // =Static
+    // =========================================================================
+
+    const PROPAGATION_METHOD_NONE = 'none';
+    const PROPAGATION_METHOD_SITE_GROUP = 'siteGroup';
+    const PROPAGATION_METHOD_LANGUAGE = 'language';
+
     // Public Properties
     // =========================================================================
 
@@ -47,8 +54,47 @@ class Settings extends Model
 
     public $volumeSubpath = 'attachments/{id}';
 
+    private $_answerSites = '*';
+
+    public $answerPropagationMethod = 'all';
+
     // Public Methods
     // =========================================================================
+
+    /**
+     * @inheritdoc
+     */
+
+    public function attributes()
+    {
+        $names = parent::attributes();
+
+        $names[] = 'answerSites';
+
+        return $names;
+    }
+
+    /**
+     * @inheritdoc
+     */
+
+    public function setAnswerSites( $value )
+    {
+        $this->_answerSites = $value;
+    }
+
+    /**
+     * @inheritdoc
+     */
+
+    public function getAnswerSites()
+    {
+        if ($this->_answerSites == '*' || $this->_answerSites == 'all') {
+            $this->_answerSites =  Craft::$app->getSites()->getAllSiteIds();
+        }
+
+        return $this->_answerSites;
+    }
 
     /**
      * Returns the validation rules for attributes.
@@ -65,7 +111,38 @@ class Settings extends Model
         return [
             [['attachments'], 'boolean'],
             [['pluginNameOverride', 'fromEmail', 'fromName', 'volumeSubpath'], 'string'],
-            [['volumeId'], 'number', 'integerOnly' => true]
+            [['volumeId'], 'number', 'integerOnly' => true],
+            [['answerSites'], 'validateSitesSelect'],
         ];
+    }
+
+    /**
+     * 
+     */
+
+    public function validateSitesSelect( $attribute, $params, $validator )
+    {
+        $value = $this->$attribute;
+        $isValid = true;
+
+        if (is_array($value))
+        {
+            foreach ($value as $val)
+            {
+                if (!is_numeric($val))
+                {
+                    $isValid = false;
+                    break;
+                }
+            }
+        }
+
+        else if ($value != '*') {
+            $isValid = false;
+        }
+
+        if (!$isValid) {
+            $this->addError($attribute, Craft::t('support', 'Answer sites must be the "*" string or an array of site ids.'));
+        }
     }
 }

@@ -20,47 +20,96 @@
 {% set title = "Create a new ticket" %}
 {% set fullPageForm = true %}
 
+{% set ticket = ticket ?? null %}
+
+{% do view.registerAssetBundle("lukeyouell\\support\\assetbundles\\TicketBundle") %}
+
 {% do view.registerAssetBundle("craft\\web\\assets\\fileupload\\FileUploadAsset") %}
 
+{% set allAnswers = craft.support.answers({ siteId: '*' }).all() %}
+
 {% block content %}
-  {{ forms.hidden({
-      name: 'action',
-      value: 'support/tickets/create',
-  })}}
+  <div class="new-message">
 
-  {{ redirectInput('support/tickets') }}
+    {{ actionInput('support/tickets/create') }}
+    {{ redirectInput('support/tickets') }}
 
-  {{ forms.textField({
-      first:       true,
-      required:    true,
-      label:       'Title',
-      id:          'title',
-      name:        'title',
-      placeholder: 'Title',
-      autofocus:   true,
-  })}}
+    {{ forms.textField({
+        first:       true,
+        required:    true,
+        label:       'Title',
+        id:          'title',
+        name:        'title',
+        placeholder: 'Title',
+        autofocus:   true,
+        errors: (ticket ? ticket.getErrors('title') : []),
+    }) }}
 
-  {{ forms.textareaField({
-      required:    true,
-      label:       'Message',
-      id:          'message',
-      name:        'message',
-      placeholder: 'Message',
-      rows:        8,
-  })}}
+    {# {{ forms.textareaField({
+        required:    true,
+        label:       'Message',
+        id:          'message',
+        name:        'message',
+        placeholder: 'Message',
+        rows:        8,
+        errors: (ticket ? ticket.getErrors('message') : []),
+    })}}
 
-  {% if settings.attachments and volume %}
-    {% include "_components/fieldtypes/Assets/input" with {
-        id:                   'attachments',
-        fieldId:              'attachments',
-        name:                 'attachments',
-        selectionLabel:       'Attachment',
-        elementType:          elementType,
-        sourceElementId:      volume.id,
-        viewMode:             'list',
-        limit:                4,
-        defaultFieldLayoutId: volume.fieldLayoutId,
-        hideSidebar:          true,
+    {% if settings.attachments and volume %}
+      {% include "_components/fieldtypes/Assets/input" with {
+          id:                   'attachments',
+          fieldId:              'attachments',
+          name:                 'attachments',
+          selectionLabel:       'Attachment',
+          elementType:          elementType,
+          sourceElementId:      volume.id,
+          viewMode:             'list',
+          limit:                4,
+          defaultFieldLayoutId: volume.fieldLayoutId,
+          hideSidebar:          true,
+      } %}
+    {% endif %} #}
+
+    {% include "support/_tickets/includes/message-field" with {
+      isFirst: false,
+      fieldLabel: 'Message',
     } %}
-  {% endif %}
+
+  </div>
+{% endblock %}
+
+{% block details %}
+
+  <div class="meta">
+
+    {% if craft.app.plugins.isPluginEnabled('commerce') %}
+
+      {{ forms.elementSelectField({
+        label: "Order"|t('app'),
+        id: 'orderId',
+        name: 'orderId',
+        elementType: 'craft\\commerce\\elements\\Order',
+        selectionLabel: "Choose"|t('app'),
+        criteria: [],
+        limit: 1,
+        elements: [],
+        errors: (ticket ? ticket.getErrors('orderId') : []),
+      }) }}
+
+    {% endif %}
+
+    {{ forms.elementSelectField({
+      label: "Recipient",
+      id: 'recipientId',
+      name: 'recipientId',
+      elementType: 'craft\\elements\\User',
+      selectionLabel: "Choose"|t('app'),
+      criteria: [],
+      limit: 1,
+      elements: [],
+      errors: (ticket ? ticket.getErrors('recipientId') : []),
+    }) }}
+
+  </div>
+
 {% endblock %}

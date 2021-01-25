@@ -48,7 +48,8 @@ class MessageService extends Component
 
     public function createMessage($ticketId = null, $submission = null)
     {
-        if ($ticketId and $submission) {
+        if ($ticketId and $submission)
+        {
             $message = new Message();
             $message->ticketId = $ticketId;
             $message->authorId = Craft::$app->getUser()->getIdentity()->id;

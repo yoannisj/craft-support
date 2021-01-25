@@ -10,8 +10,10 @@
 
 namespace lukeyouell\support;
 
-use lukeyouell\support\elements\Ticket as TicketElement;
 use lukeyouell\support\models\Settings;
+use lukeyouell\support\elements\Message as MessageElement;
+use lukeyouell\support\elements\Ticket as TicketElement;
+use lukeyouell\support\elements\Answer as AnswerElement;
 use lukeyouell\support\services\SupportService as SupportServiceService;
 use lukeyouell\support\variables\SupportVariable;
 
@@ -27,6 +29,7 @@ use craft\services\Plugins;
 use craft\services\UserPermissions;
 use craft\web\UrlManager;
 use craft\web\twig\variables\CraftVariable;
+use craft\events\DeleteElementEvent;
 
 use yii\base\Event;
 
@@ -56,7 +59,7 @@ class Support extends Plugin
      * @var string
      */
 
-    public $schemaVersion = '1.1.0';
+    public $schemaVersion = '1.3.0';
 
     // Public Methods
     // =========================================================================
@@ -102,6 +105,7 @@ class Support extends Plugin
             function (RegisterComponentTypesEvent $event) {
                 $event->types[] = MessageElement::class;
                 $event->types[] = TicketElement::class;
+                $event->types[] = AnswerElement::class;
             }
         );
 
@@ -128,6 +132,11 @@ class Support extends Plugin
                 $variable->set($this->handle, SupportVariable::class);
             }
         );
+
+        // Craft commerce initialization
+        if (Craft::$app->getPlugins()->isPluginEnabled('commerce')) {
+            $this->initCommerce();
+        }
 
         // Do something after we're installed
         Event::on(
@@ -223,5 +232,56 @@ class Support extends Plugin
                 'overrides' => array_keys($overrides)
             ]
         );
+    }
+
+    /**
+     * 
+     */
+
+    protected function initCommerce() 
+    {
+        Event::on(
+            Elements::class,
+            Elements::EVENT_BEFORE_DELETE_ELEMENT,
+            function(DeleteElementEvent $event)
+            {
+                if ($event->element instanceof \craft\commerce\elements\Order)
+                {
+                    $this->onBeforeDeleteCommerceOrder($event);
+                }
+            }
+        );
+    }
+
+    /**
+     * 
+     */
+
+    protected function onBeforeDeleteCommerceOrder( DeleteElementEvent $event )
+    {
+        if (!$event->hardDelete) return;
+
+        // get support tickets with reference to the order
+        $order = $event->element;
+
+        $tickets = TicketElement::find()
+            ->where([ 'orderId' => $order->id ])
+            ->all();
+
+        $craftElements = Craft::$app->getElements();
+
+        foreach ($tickets as $ticket)
+        {
+            $ticket->orderId = null;
+            $ticket->deletedOrderReference = $order->reference;
+
+            $statusService = $this->get('ticketStatusService');
+            $legacyStatus = $statusService->getLegacyTicketStatus();
+            if ($legacyStatus) {
+                $ticket->ticketStatusId = $legacyStatus->id;
+            }
+
+            $success = $craftElements->saveElement($ticket, true, false);
+        }
     }
 }

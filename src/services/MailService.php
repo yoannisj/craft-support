@@ -15,50 +15,98 @@ use lukeyouell\support\records\Email as EmailRecord;
 
 use Craft;
 use craft\base\Component;
-use craft\helpers\StringHelper;
-use craft\helpers\UrlHelper;
 use craft\mail\Message;
 use craft\web\View;
+use craft\helpers\StringHelper;
+use craft\helpers\ArrayHelper;
+use craft\helpers\UrlHelper;
+use craft\helpers\App as AppHelper;
 
 use yii\base\InvalidConfigException;
 use yii\helpers\Markdown;
+
+/**
+ *
+ */
 
 class MailService extends Component
 {
     // Public Properties
     // =========================================================================
 
+    /**
+     *
+     */
+
     public $settings;
 
-    public $system;
+    /**
+     *
+     */
+
+    public $mailSettings;
 
     // Public Methods
     // =========================================================================
+
+    /**
+     *
+     */
 
     public function init()
     {
         parent::init();
 
         $this->settings = Support::$plugin->getSettings();
-        $this->system = Craft::$app->systemSettings;
+        $this->mailSettings = AppHelper::mailSettings();
     }
+
+    /**
+     *
+     */
 
     public function handleEmail($ticketId = null)
     {
-        if ($ticketId) {
-            $ticket = Support::getInstance()->ticketService->getTicketById($ticketId);
+        // get ticket element
+        if ($ticketId) $ticket = Support::getInstance()->ticketService->getTicketById($ticketId);
+        if (!$ticket || !$ticket->id) return;
 
-            if ($ticket->id) {
-                $emails = $ticket->ticketStatus->emails;
+        $emails = $ticket->ticketStatus->emails;
 
-                foreach ($emails as $email) {
-                    if ($email->enabled) {
-                        $this->sendEmail($email, $ticket);
-                    }
+        // set language for email recipient
+        $originalLanguage = Craft::$app->language;
+        $originalSite = Craft::$app->getSites()->getCurrentSite();
+        $recipientLanguage = null;
+
+        foreach ($emails as $email)
+        {
+            if ($email->enabled)
+            {
+                // get recipient's language
+                if ($email->recipientType == EmailRecord::TYPE_RECIPIENT) {
+                    $recipientLanguage = $recipientLanguage ?? $ticket->getRecipientLanguage();
+                } else if ($email->recipientType == EmailRecord::TYPE_AUTHOR) {
+                    $recipientLanguage = $recipientLanguage ?? $ticket->getAuthorLanguage();
                 }
+
+                // Render the email template in the recipient's preferred language
+                if ($recipientLanguage) {
+                    Craft::$app->language = $recipientLanguage;
+                }
+
+                $this->sendEmail($email, $ticket);
+
+                // reset language
+                Craft::$app->language = $originalLanguage;
             }
+
+            $recipientLanguage = null;
         }
     }
+    
+    /**
+     *
+     */
 
     public function sendEmail($email, $ticket)
     {
@@ -71,21 +119,36 @@ class MailService extends Component
 
         $toEmails = $this->getToEmails($email, $ticket);
 
-        foreach ($toEmails as $toEmail) {
+        foreach ($toEmails as $toEmail)
+        {
             $message->setTo($toEmail);
             $mailer->send($message);
         }
     }
 
+    /**
+     *
+     */
+
     public function getFromEmail()
     {
-        return $this->settings->fromEmail ?: $this->system->getSetting('email', 'fromEmail');
+        $fromEmail = $this->settings->fromEmail ?: $this->mailSettings->fromEmail;
+        return Craft::parseEnv($fromEmail);
     }
+
+    /**
+     *
+     */
 
     public function getFromName()
     {
-        return $this->settings->fromName ?: $this->system->getSetting('email', 'fromName');
+        $fromName = $this->settings->fromName ?: $this->mailSettings->fromName;
+        return Craft::parseEnv($fromName);
     }
+
+    /**
+     *
+     */
 
     public function getToEmails($email, $ticket)
     {
@@ -93,12 +156,26 @@ class MailService extends Component
 
         if ($email->recipientType == EmailRecord::TYPE_AUTHOR) {
             $toEmail = $ticket->author->email;
+        } elseif ($email->recipientType == EmailRecord::TYPE_RECIPIENT) {
+            $toEmail = $ticket->recipientEmail;
         } elseif ($email->recipientType == EmailRecord::TYPE_CUSTOM) {
             $toEmail = $email->to;
         }
 
-        return is_string($toEmail) ? StringHelper::split($toEmail) : $toEmail;
+        if (empty($toEmail)) {
+            throw new InvalidConfigException('Could not determine recipient email addresse(s)');
+        }
+
+        // accept comma-separated string
+        $emails = is_string($toEmail) ? StringHelper::split($toEmail) : $toEmails;
+
+        // accept environment variables
+        return array_map('Craft::parseEnv', $emails);
     }
+
+    /**
+     *
+     */
 
     public function getSubject($email, $ticket)
     {
@@ -107,10 +184,16 @@ class MailService extends Component
         return $subject;
     }
 
+    /**
+     *
+     */
+
     public function getTemplateHtml($email, $ticket)
     {
-        if ($email->templatePath) {
+        if ($email->templatePath)
+        {
             $variables = [
+                'email' => $email,
                 'ticket' => $ticket,
             ];
 

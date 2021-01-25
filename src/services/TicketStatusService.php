@@ -39,6 +39,10 @@ class TicketStatusService extends Component
     // Public Methods
     // =========================================================================
 
+    /**
+     * @return \lukeyouell\support\models\TicketStatusModel[]
+     */
+
     public function getAllTicketStatuses()
     {
         if (!$this->_fetchedAllStatuses) {
@@ -54,14 +58,26 @@ class TicketStatusService extends Component
         return $this->_ticketStatusesById;
     }
 
-    public function getTicketStatusById($id)
+    /**
+     * @return \lukeyouell\support\models\TicketStatusModel | null
+     */
+
+     public function getTicketStatusById($id)
     {
         $result = $this->_createTicketStatusQuery()
             ->where(['id' => $id])
             ->one();
 
-        return new TicketStatusModel($result);
+        if ($result) {
+            return new TicketStatusModel($result);
+        }
+
+        return null;
     }
+
+    /**
+     * @return \lukeyouell\support\models\TicketStatusModel | null
+     */
 
     public function getDefaultTicketStatus()
     {
@@ -69,8 +85,16 @@ class TicketStatusService extends Component
             ->where(['default' => 1])
             ->one();
 
-        return new TicketStatusModel($result);
+        if ($result) {
+            return new TicketStatusModel($result);
+        }
+
+        return null;
     }
+
+    /**
+     * @return \lukeyouell\support\models\TicketStatusModel | null
+     */
 
     public function getNewMessageTicketStatus()
     {
@@ -78,8 +102,33 @@ class TicketStatusService extends Component
             ->where(['newMessage' => 1])
             ->one();
 
-        return new TicketStatusModel($result);
+        if ($result) {
+            return new TicketStatusModel($result);
+        }
+
+        return null;
     }
+
+    /**
+     * @return \lukeyouell\support\models\TicketStatusModel | null
+     */
+
+    public function getLegacyTicketStatus()
+    {
+        $result = $this->_createTicketStatusQuery()
+            ->where(['legacy' => 1])
+            ->one();
+
+        if ($result) {
+            return new TicketStatusModel($result);
+        }
+
+        return null;
+    }
+
+    /**
+     * 
+     */
 
     public function checkIfTicketStatusInUse($id)
     {
@@ -90,7 +139,11 @@ class TicketStatusService extends Component
         return $result;
     }
 
-    public function reorderTicketStatuses(array $ids)
+    /**
+     * 
+     */
+
+     public function reorderTicketStatuses(array $ids)
     {
         foreach ($ids as $sortOrder => $id) {
             Craft::$app->getDb()->createCommand()
@@ -100,6 +153,10 @@ class TicketStatusService extends Component
 
         return true;
     }
+
+    /**
+     * 
+     */
 
     public function saveTicketStatus(TicketStatusModel $model, array $emailIds, bool $runValidation = true)
     {
@@ -126,6 +183,7 @@ class TicketStatusService extends Component
         $record->sortOrder = $model->sortOrder ?: 999;
         $record->default = $model->default;
         $record->newMessage = $model->newMessage;
+        $record->legacy = $model->legacy;
 
         // Validate email ids
         $exist = EmailRecord::find()->where(['in', 'id', $emailIds])->exists();
@@ -148,6 +206,10 @@ class TicketStatusService extends Component
             if ($record->newMessage) {
                 TicketStatusRecord::updateAll(['newMessage' => 0]);
             }
+
+            // if ($record->legacy) {
+            //     TicketStatusRecord::updateAll(['legacy' => 0]);
+            // }
 
             // Save it
             $record->save(false);
@@ -184,6 +246,10 @@ class TicketStatusService extends Component
         return true;
     }
 
+    /**
+     * 
+     */
+
     public function deleteTicketStatusbyId($id)
     {
         $statuses = $this->getAllTicketStatuses();
@@ -208,11 +274,19 @@ class TicketStatusService extends Component
     // Private Methods
     // =========================================================================
 
+    /**
+     * 
+     */
+
     private function _memoizeTicketStatus(TicketStatusModel $ticketStatus)
     {
         $this->_ticketStatusesById[$ticketStatus->id] = $ticketStatus;
         $this->_ticketStatusesByHandle[$ticketStatus->handle] = $ticketStatus;
     }
+
+    /**
+     * 
+     */
 
     private function _createTicketStatusQuery()
     {
@@ -225,6 +299,7 @@ class TicketStatusService extends Component
                 'sortOrder',
                 'default',
                 'newMessage',
+                'legacy',
             ])
             ->orderBy('sortOrder')
             ->from(['{{%support_ticketstatuses}}']);

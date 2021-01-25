@@ -1,0 +1,111 @@
+{% import "_includes/forms" as forms %}
+
+{% set fieldLabel = fieldLabel ?? 'Answer' %}
+{% set allAnswers = craft.support.answers({ siteId: '*' }).all() %}
+{% set isFirst = isFirst ?? false %}
+
+<div class="field {% if isFirst %}first{% endif %}">
+
+  <div class="heading" style="justify-content: space-between;">
+    <label for="message">{{ fieldLabel }}</label>
+
+    {% if allAnswers | length %}
+
+      {% set allSitesById = craft.app.sites.getAllSites() | group('id') %}
+      {% set answersPerSite = allAnswers | group('siteId') %}
+      {% set answerSiteIds = answersPerSite | keys %}
+
+      {% set answerSiteOptions = [] %}
+
+      {% for siteId in answerSiteIds %}
+        {% set site = allSitesById[siteId] | first %}
+        {% set answerSiteOptions = answerSiteOptions | merge([{
+          value: site.id,
+          label: site.name,
+        }]) %}
+      {% endfor %}
+
+      <div class="flex">
+
+        <div>
+          {{ forms.select({
+            id: 'answerSite',
+            name: 'answerSite',
+            options: answerSiteOptions,
+            toggle: true,
+            targetPrefix: 'answers-',
+          }) }}
+        </div>
+
+        <div>
+          {% for siteId, siteAnswers in answersPerSite %}
+            
+            {% set answersListId = ('answers-' ~ siteId) | lower %}
+            {% set answersListClass = (loop.first ? '' : 'hidden') %}
+            {% set answerOptionsName = 'answer[' ~ siteId ~ ']' %}
+
+            {% set answerOptions = [{
+              value: null,
+              label: 'Select Answer…',
+            }] %}
+
+            {% for answer in siteAnswers %}
+              {% set answerOptions = answerOptions | merge([{
+                value: answer.id,
+                label: answer.title,
+              }]) %}
+            {% endfor %}
+
+            <div id="{{ answersListId }}" class="{{ answersListClass }}">
+              {{ forms.select({
+                id: answerOptionsName,
+                class: 'answer-select',
+                name: answerOptionsName,
+                options: answerOptions,
+              }) }}
+            </div>
+
+          {% endfor %}
+        </div>
+
+      </div>
+
+      {% for answer in allAnswers %}
+        <textarea class="answer-text hidden" data-answer-id="{{ answer.id }}" readonly>
+          {{ answer.text }}
+        </textarea>
+      {% endfor %}
+
+    {% endif %}
+  </div>
+
+  <div class="input">
+    {{ forms.textareaField({
+        first:       isFirst,
+        required:    true,
+        id:          'message',
+        name:        'message',
+        placeholder: 'Post a message...',
+    })}}
+
+    <div class="new-message-controls">
+      {% if settings.attachments and volume %}
+        {% include "_components/fieldtypes/Assets/input" with {
+          id:                   'attachments',
+          fieldId:              'attachments',
+          name:                 'attachments',
+          selectionLabel:       'Attachment',
+          elementType:          assetElementType,
+          sourceElementId:      volume.id,
+          viewMode:             'list',
+          limit:                4,
+          defaultFieldLayoutId: volume.fieldLayoutId,
+          hideSidebar:          true,
+        } %}
+      {% endif %}
+
+      <input class="btn submit" type="submit" value="Post message">
+    </div>
+  </div>
+
+</div>

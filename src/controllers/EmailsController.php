@@ -106,7 +106,6 @@ class EmailsController extends Controller
 
         if ($save) {
             Craft::$app->getSession()->setNotice('Email saved.');
-
             $this->redirectToPostedUrl();
         } else {
             Craft::$app->getSession()->setError('Couldn’t save email.');

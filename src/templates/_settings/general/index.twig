@@ -53,4 +53,42 @@
       warning:      'fromName' in overrides ? macros.configWarning('fromName'),
   })}}
 
+  {% set siteOptions = [] %}
+  {% for site in craft.app.sites.getAllSites() %}
+    {% set siteOptions = siteOptions|merge([{
+      value: site.id,
+      label: site.name,
+    }]) %}
+  {% endfor %}
+
+  {% if craft.app.getIsMultiSite() %}
+
+      {{ forms.checkboxSelectField({
+          label: 'Answer Sites',
+          instructions: 'Select for which sites support answers should be enabled',
+          id: 'answerSites',
+          name: 'settings[answerSites]',
+          options: siteOptions,
+          showAllOption: true,
+          values: settings.answerSites,
+      }) }}
+
+      <div class="field">
+          {{ forms.selectField({
+              label: 'Propagation Method'|t('app'),
+              instructions: 'Of the enabled sites above, which sites should support answers be saved to?'|t('app'),
+              warning: settings.answerPropagationMethod != 'none' and settings.answerSites|length > 1 ? 'Changing this may result in data loss.'|t('app'),
+              id: 'answerPropagationMethod',
+              name: 'settings[answerPropagationMethod]',
+              options: [
+                  { value: 'none', label: 'Only save answers to the site they were created in'|t('app') },
+                  { value: 'siteGroup', label: 'Save answers to other sites in the same site group'|t('app') },
+                  { value: 'language', label: 'Save answers to other sites with the same language'|t('app') },
+                  { value: 'all', label: 'Save answers to all available sites'|t('support') },
+              ],
+              value: settings.answerPropagationMethod
+          }) }}
+      </div>
+  {% endif %}
+
 {% endblock %}

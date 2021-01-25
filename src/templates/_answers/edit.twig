@@ -141,20 +141,20 @@
     }) }}
   </div>
 
-  <div class="meta read-only">
+  {% if answer.id %}
 
-    {% if answer.authorId %}
-      <div class="data">
-        <div class="heading">
-          Author
+    <div class="meta read-only">
+      {% if answer.authorId %}
+        <div class="data">
+          <div class="heading">
+            Author
+          </div>
+          <div class="value">
+            <a href="{{ answer.author.cpEditUrl }}">{{ answer.author.name }}</a>
+          </div>
         </div>
-        <div class="value">
-          <a href="{{ ticket.author.cpEditUrl }}">{{ answer.author.name }}</a>
-        </div>
-      </div>
-    {% endif %}
+      {% endif %}
 
-    {% if answer.id %}
       <div class="data">
           <h5 class="heading">{{ "Date Created"|t('app') }}</h5>
           <div class="value">{{ answer.dateCreated|datetime('short') }}</div>
@@ -163,8 +163,9 @@
           <h5 class="heading">{{ "Date Updated"|t('app') }}</h5>
           <div class="value">{{ answer.dateUpdated|datetime('short') }}</div>
       </div>
-    {% endif %}
-  </div>
+    </div>
+
+  {% endif %}
 
   {% hook "cp.support.answers.edit.details" %}
 

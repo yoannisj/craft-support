@@ -76,11 +76,14 @@ class AnswersController extends Controller
 
     public function actionIndex()
     {
+        $variables = [];
+        $this->prepEditableSiteVariables($variables);
+
         if (!Craft::$app->getUser()->checkPermission('support-manageAnswers')) {
             throw new ForbiddenHttpException('User not permitted to manage support answers');
         }
 
-        return $this->renderTemplate('support/_answers/index');
+        return $this->renderTemplate('support/_answers/index', $variables);
     }
 
     /**
@@ -132,7 +135,9 @@ class AnswersController extends Controller
         // get site segment for url variables
         $siteSegment = '';
 
-        if (Craft::$app->getIsMultisite() && Craft::$app->getSites()->getCurrentSite()->id != $site->id) {
+        if (Craft::$app->getIsMultisite()
+            && Craft::$app->getSites()->getCurrentSite()->id != $site->id)
+        {
             $siteSegment = '/'.$site->handle;
         }
 
@@ -345,9 +350,21 @@ class AnswersController extends Controller
 
     protected function prepEditableSiteVariables( array &$variables = [] )
     {
-        if (Craft::$app->getIsMultiSite()) {
-            // Only use the sites that the user has access to
-            $variables['siteIds'] = Craft::$app->getSites()->getEditableSiteIds();
+        if (Craft::$app->getIsMultiSite())
+        {
+            $variables['siteIds'] = [];
+
+            $currentUser = Craft::$app->getUser();
+            $answerSiteIds = $this->settings->answerSites;
+
+            foreach ($answerSiteIds as $siteId)
+            {
+                $site = Craft::$app->getSites()->getSiteById($siteId);
+                $siteUid = $site->uid;
+                if ($currentUser->checkPermission('editSite:'.$siteUid)) {
+                    $variables['siteIds'][] = $siteId;
+                }
+            }
         }
 
         else {
@@ -355,7 +372,7 @@ class AnswersController extends Controller
             $variables['siteIds'] = [ Craft::$app->getSites()->getPrimarySite()->id ];
         }
 
-        if (!$variables['siteIds']) {
+        if (empty($variables['siteIds'])) {
             throw new ForbiddenHttpException('User not permitted to edit content in any sites');
         }
 
@@ -375,7 +392,8 @@ class AnswersController extends Controller
         {
             $answerId = $variables['answerId'] ?? null;
 
-            if (!empty($answerId)) {
+            if (!empty($answerId))
+            {
                 $answer = Support::getInstance()->answerService->getAnswerById($answerId, $site->id);
 
                 if (!$answer) {
@@ -461,8 +479,13 @@ class AnswersController extends Controller
         $answer->title = $request->getBodyParam('title', $answer->title);
         $answer->text = $request->getBodyParam('text', '');
 
-        $currentUser = Craft::$app->getUser();
-        $answer->authorId = $request->getBodyParam('authorId', $currentUser ? $currentUser->id : null);
+        $answer->authorId = $request->getBodyParam('authorId');
+
+        if ($answer->authorId === null)
+        {
+            $currentUser = Craft::$app->getUser();
+            if ($currentUser) $answer->authorId = $currentUser->id;
+        }
 
         return $answer;
     }

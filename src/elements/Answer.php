@@ -14,11 +14,14 @@ namespace lukeyouell\support\elements;
 use Craft;
 use craft\base\Element;
 use craft\elements\db\ElementQueryInterface;
+use craft\elements\actions\Delete;
 use craft\elements\actions\Restore;
 use craft\helpers\StringHelper;
 use craft\helpers\UrlHelper;
+use craft\helpers\ArrayHelper;
 
-
+use lukeyouell\support\Support;
+use lukeyouell\support\models\Settings as SupportSettings;
 use lukeyouell\support\elements\db\AnswerQuery;
 
 /**
@@ -92,9 +95,28 @@ class Answer extends Element
 
     protected static function defineActions( string $source = null ): array
     {
-        return [
-            Restore::class,
-        ];
+        $userSession = Craft::$app->getUser();
+        $canManageAnswers = $userSession->checkPermission('support-manageAnswers');
+
+        $actions = [];
+
+        if ($canManageAnswers)
+        {
+            $actions[] = Craft::$app->getElements()->createAction([
+                'type'                => Delete::class,
+                'confirmationMessage' => Craft::t('support', 'Are you sure you want to delete the selected answers?'),
+                'successMessage'      => Craft::t('support', 'Answers deleted.'),
+            ]);
+
+            $actions[] = Craft::$app->getElements()->createAction([
+                'type'                  => Restore::class,
+                'successMessage'        => Craft::t('support', 'Answers restored.'),
+                'partialSuccessMessage' => Craft::t('support', 'Some answers could not be restored successfully.'),
+                'failMessage'           => Craft::t('support', 'Could not restore selected answers.'),
+            ]);
+        }
+
+        return $actions;
     }
 
     /**
@@ -248,6 +270,47 @@ class Answer extends Element
         return $url;
     }
 
+    // =Content
+    // ------------------------------------------------------------------------
+
+    /**
+     * @inheritdoc
+     */
+
+    public function getSupportedSites(): array
+    {
+        $settings = Support::getInstance()->getSettings();
+        
+        /** @var Site[] $allSites */
+        $allSites = ArrayHelper::index(Craft::$app->getSites()->getAllSites(), 'id');
+        $sites = [];
+
+        foreach ($settings->answerSites as $siteId)
+        {
+            switch ($settings->answerPropagationMethod)
+            {
+                case SupportSettings::PROPAGATION_METHOD_NONE:
+                    $include = ($siteId == $this->siteId);
+                    break;
+                case SupportSettings::PROPAGATION_METHOD_SITE_GROUP:
+                    $include = ($allSites[$siteId]->groupId == $allSites[$this->siteId]->groupId);
+                    break;
+                case SupportSettings::PROPAGATION_METHOD_LANGUAGE:
+                    $include = ($allSites[$siteId]->language == $allSites[$this->siteId]->language);
+                    break;
+                default:
+                    $include = true;
+                    break;
+            }
+
+            if ($include) {
+                $sites[] = $siteId;
+            }
+        }
+
+        return $sites;
+    }
+
     // =Events
     // ------------------------------------------------------------------------
 
@@ -257,34 +320,34 @@ class Answer extends Element
 
     public function afterSave( bool $isNew )
     {
-        $contentTable = Craft::$app->getContent()->contentTable;
-
-        Craft::$app->db->createCommand()
-            ->update($contentTable, [
-                'support_answer_text' => $this->text,
-            ], [
-                'id' => $this->contentId,
-                // 'elementId' => $this->id,
-                // 'siteId' => $this->siteId,
-            ])
-            ->execute();
-
         if ($isNew)
         {
+            // Insert element field values in answers table
             Craft::$app->db->createCommand()
                 ->insert('{{%support_answers}}', [
                     'id' => $this->id,
+                    'authorId' => $this->authorId,
                 ])
                 ->execute();
         }
 
         else
         {
+            // Update element field values in answers table
             Craft::$app->db->createCommand()
                 ->update('{{%support_answers}}', [
-                ], ['id' => $this->id])
+                    'authorId' => $this->authorId,
+                ], [ 'id' => $this->id ])
                 ->execute();
         }
+
+        // Save localized field values in content table
+        $contentTable = Craft::$app->getContent()->contentTable;
+        Craft::$app->db->createCommand()
+            ->update($contentTable, [
+                'support_answer_text' => $this->text,
+            ], [ 'id' => $this->contentId ])
+            ->execute();
 
         parent::afterSave($isNew);
     }

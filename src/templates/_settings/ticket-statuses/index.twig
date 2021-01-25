@@ -14,8 +14,10 @@
         <th>Emails</th>
         <th>Default</th>
         <th>New Message</th>
+        <th>Legacy</th>
         <td class="thin"></td>
         <td class="thin"></td>
+        
       </tr>
     </thead>
 
@@ -41,6 +43,13 @@
               <span data-icon="check" title="Yes"></span>
             {% endif %}
           </td>
+          {% if craft.app.plugins.isPluginEnabled('commerce') %}
+            <td>
+              {% if status.legacy %}
+                <span data-icon="check" title="Yes"></span>
+              {% endif %}
+            </td>
+          {% endif %}
           <td class="thin">
             <a class="move icon" title="Reorder" role="button"></a>
           </td>

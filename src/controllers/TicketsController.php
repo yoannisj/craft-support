@@ -16,6 +16,7 @@ use Craft;
 use craft\elements\Asset;
 use craft\helpers\Template;
 use craft\web\Controller;
+use craft\helpers\ArrayHelper;
 
 use yii\base\InvalidConfigException;
 use yii\web\HttpException;
@@ -31,6 +32,10 @@ class TicketsController extends Controller
     // Public Methods
     // =========================================================================
 
+    /**
+     * 
+     */
+
     public function init()
     {
         parent::init();
@@ -41,10 +46,18 @@ class TicketsController extends Controller
         }
     }
 
+    /**
+     * 
+     */
+
     public function actionIndex()
     {
         return $this->renderTemplate('support/_tickets/index');
     }
+
+    /**
+     * 
+     */
 
     public function actionNew()
     {
@@ -59,9 +72,16 @@ class TicketsController extends Controller
         return $this->renderTemplate('support/_tickets/new', $variables);
     }
 
+    /**
+     * 
+     */
+
     public function actionView(string $ticketId = null)
     {
+        $this->requireLogin();
+
         $ticket = Support::getInstance()->ticketService->getTicketById($ticketId);
+        $userIdentity = Craft::$app->getUser()->getIdentity();
 
         if (!$ticket) {
             throw new NotFoundHttpException('Ticket not found');
@@ -80,17 +100,35 @@ class TicketsController extends Controller
         return $this->renderTemplate('support/_tickets/ticket', $variables);
     }
 
+    /**
+     * 
+     */
+
     public function actionCreate()
     {
         $this->requirePostRequest();
+        $this->requireLogin();
 
-        $settings = Support::$plugin->getSettings();
         $request = Craft::$app->getRequest();
 
-        // First create ticket
-        $ticket = Support::getInstance()->ticketService->createTicket($request);
+        $supportPlugin = Support::getInstance();
+        $settings = $supportPlugin->getSettings();
 
-        if (!$ticket) {
+        // First create ticket
+        $ticket = $supportPlugin->ticketService->createTicket($request);
+        $message = $request->post('message');
+
+        $success = Craft::$app->getElements()->saveElement($ticket, true, false);
+
+        // require a ticket message upon creation
+        if (empty($message))
+        {
+            $ticket->addError('message', Craft::t('support', 'Message can not be empty.'));
+            $success = false;
+        }
+
+        if (!$success)
+        {
             if ($request->getAcceptsJson()) {
                 return $this->asJson([
                     'success' => false,
@@ -98,20 +136,19 @@ class TicketsController extends Controller
             }
 
             Craft::$app->getSession()->setError('Couldn’t create the ticket.');
-
             Craft::$app->getUrlManager()->setRouteParams([
                 'ticket' => $ticket,
             ]);
+        }
 
-            return null;
-        } else {
-
+        else
+        {
             // Ticket created, now create message but don't change ticket status id
-            $message = Support::getInstance()->messageService->createMessage($ticket->id, $request, false);
+            $message = $supportPlugin->messageService->createMessage($ticket->id, $request, false);
 
             // Handle email notification after message is created
             if ($ticket->ticketStatus->emails) {
-                Support::getInstance()->mailService->handleEmail($ticket->id);
+                $supportPlugin->mailService->handleEmail($ticket->id);
             }
 
             if ($request->getAcceptsJson()) {
@@ -121,35 +158,56 @@ class TicketsController extends Controller
             }
 
             Craft::$app->getSession()->setNotice('Ticket created.');
-
-            return $this->redirectToPostedUrl();
         }
+
+        return $this->redirectToPostedUrl();    
     }
+
+    /**
+     * 
+     */
 
     public function actionSave()
     {
         $this->requirePostRequest();
+        $this->requireLogin();
 
         $request = Craft::$app->getRequest();
         $ticketId = Craft::$app->security->validateData($request->post('ticketId'));
         $ticketStatusId = $request->post('ticketStatusId');
+        $message = $request->post('message');
 
-        if ($ticketId) {
-            $ticket = Support::getInstance()->ticketService->getTicketById($ticketId);
+        $supportPlugin = Support::getInstance();
+        $userSession = Craft::$app->getUser();
+
+        if ($ticketId)
+        {
+            // get existing ticket based on given id
+            $ticket = $supportPlugin->ticketService->getTicketById($ticketId);
 
             if (!$ticket) {
                 throw new NotFoundHttpException('Ticket not found');
             }
 
-            if ($request->post('ticketStatusId')) {
-                Support::getInstance()->ticketService->changeTicketStatus($ticket, $ticketStatusId);
+            if ($ticketStatusId) {
+                $supportPlugin->ticketService->changeTicketStatus($ticket, $ticketStatusId);
             }
 
-            Craft::$app->getElements()->saveElement($ticket, false);
+            $success = Craft::$app->getElements()->saveElement($ticket, false);
 
-            Craft::$app->getSession()->setNotice('Ticket updated.');
+            if ($success) {
+                Craft::$app->getSession()->setNotice('Ticket updated.');
+            }
+
+            else {
+                Craft::$app->getSession()->setError('Could not update ticket.');
+            }
         }
 
         return $this->redirectToPostedUrl();
     }
+
+    // =Protected method
+    // ========================================================================
+
 }

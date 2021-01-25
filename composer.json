@@ -2,7 +2,7 @@
     "name": "yoannisj/craft-support",
     "description": "Simple support system for tracking, prioritising and solving customer support tickets.",
     "type": "craft-plugin",
-    "version": "1.1.0",
+    "version": "1.3.0",
     "keywords": [
         "craft",
         "cms",
