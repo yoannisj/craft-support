@@ -62,10 +62,10 @@ class TicketService extends Component
           // get commerce info
           $this->populateCommerceFields($ticket);
 
-          Craft::error('AUTHOR ID: ' . $tick->authorId);
-          Craft::error('RECIPIENT ID: ' . $tick->recipientId);
+          Craft::error('AUTHOR ID: ' . $ticket->authorId);
+          Craft::error('RECIPIENT ID: ' . $ticket->recipientId);
           Craft::error('ORDER ID: ' . $ticket->orderId.' ('. ($ticket->order->customerId ?? null).')');
-          Craft::error('CUSTOMER ID: ' . $ticket->getCustomer()->id ?? null);
+          Craft::error('CUSTOMER ID: ' . ($ticket->getCustomer()->id ?? null));
 
           // recipient defaults to author created on the front-end without linking to an order
           if (!$ticket->recipientId && $submission->getIsSiteRequest()) {
@@ -181,7 +181,7 @@ class TicketService extends Component
             }
 
             $ticket->orderId = $order->id;
-            $ticker->orderReference = $order->reference;
+            $ticket->orderReference = $order->reference;
         }
 
         // get customer data
