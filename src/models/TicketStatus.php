@@ -24,19 +24,53 @@ class TicketStatus extends Model
     // Public Properties
     // =========================================================================
 
+    /** 
+     * @var int
+     */
+
     public $id;
+
+    /** 
+     * @var string
+     */
 
     public $name;
 
+    /** 
+     * @var string
+     */
+
     public $handle;
+
+    /** 
+     * @var string
+     */
 
     public $colour = 'green';
 
+    /** 
+     * @var int
+     */
+
     public $sortOrder;
+
+    /** 
+     * @var bool
+     */
 
     public $default;
 
+    /** 
+     * @var bool
+     */
+
     public $newMessage;
+    
+    /** 
+     * @var bool
+     */
+    
+    public $legacy;
 
     // Public Methods
     // =========================================================================

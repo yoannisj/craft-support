@@ -61,12 +61,14 @@ class Email extends Model
     {
         return [
             [['name', 'subject', 'templatePath'], 'required'],
-            [['recipientType'], 'in', 'range' => [EmailRecord::TYPE_AUTHOR, EmailRecord::TYPE_CUSTOM]],
-            [
-                ['to'], 'required', 'when' => function($model) {
-                    return $model->recipientType == EmailRecord::TYPE_CUSTOM;
-                }
-            ],
+            [['recipientType'], 'in', 'range' => [
+                EmailRecord::TYPE_AUTHOR,
+                EmailRecord::TYPE_RECIPIENT,
+                EmailRecord::TYPE_CUSTOM
+            ]],
+            [['to'], 'required', 'when' => function($model) {
+                return $model->recipientType == EmailRecord::TYPE_CUSTOM;
+            }],
         ];
     }
 

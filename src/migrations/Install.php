@@ -18,6 +18,7 @@ use lukeyouell\support\records\TicketStatusEmail as TicketStatusEmailRecord;
 use Craft;
 use craft\config\DbConfig;
 use craft\db\Migration;
+use craft\helpers\App as AppHelper;
 use craft\helpers\MigrationHelper;
 
 use LitEmoji\LitEmoji;
@@ -80,6 +81,8 @@ class Install extends Migration
         if ($tableSchema === null) {
             $tablesCreated = true;
 
+            $emailRecipientTypes = [ 'author', 'recipient', 'custom' ];
+
             $this->createTable(
                 '{{%support_emails}}',
                 [
@@ -90,7 +93,7 @@ class Install extends Migration
                     // Custom columns in the table
                     'name'          => $this->string()->notNull(),
                     'subject'       => $this->string()->notNull(),
-                    'recipientType' => $this->enum('recipientType', ['author', 'custom'])->defaultValue('custom'),
+                    'recipientType' => $this->enum('recipientType', $emailRecipientTypes)->defaultValue('custom'),
                     'to'            => $this->string(),
                     'bcc'           => $this->string(),
                     'templatePath'  => $this->string()->notNull(),
@@ -124,8 +127,14 @@ class Install extends Migration
                     // Custom columns in the table
                     'ticketStatusId' => $this->integer(),
                     'authorId'       => $this->integer(),
+                    'recipientId'    => $this->integer(),
                 ]
             );
+
+            if (Craft::$app->getPlugins()->isPluginInstalled('commerce')) {
+                $this->addColumn('{{%support_tickets}}', 'orderId', 'integer');
+                $this->addColumn('{{%support_tickets}}', 'deletedOrderReference', 'string');
+            }
 
             $this->createTable(
                 '{{%support_ticketstatuses}}',
@@ -156,6 +165,21 @@ class Install extends Migration
                     'emailId'        => $this->integer()->notNull(),
                 ]
             );
+
+            $this->createTable(
+                '{{%support_answers}}',
+                [
+                    'id'             => $this->primaryKey(),
+                    'dateCreated'    => $this->dateTime()->notNull(),
+                    'dateUpdated'    => $this->dateTime()->notNull(),
+                    'uid'            => $this->uid(),
+                    // Custom columns in the table
+                    'authorId'       => $this->integer(),
+                ]
+            );
+
+            $contentTable = Craft::$app->getContent()->contentTable;
+            $this->addColumn($contentTable, 'support_answer_text', 'text');
         }
 
         return $tablesCreated;
@@ -168,11 +192,19 @@ class Install extends Migration
         $this->addForeignKey(null, '{{%support_messages}}', ['ticketId'], '{{%support_tickets}}', ['id'], 'CASCADE');
 
         $this->addForeignKey(null, '{{%support_tickets}}', ['id'], '{{%elements}}', ['id'], 'CASCADE');
-        $this->addForeignKey(null, '{{%support_tickets}}', ['authorId'], '{{%users}}', ['id'], null, 'CASCADE');
         $this->addForeignKey(null, '{{%support_tickets}}', ['ticketStatusId'], '{{%support_ticketstatuses}}', ['id'], null, 'CASCADE');
+        $this->addForeignKey(null, '{{%support_tickets}}', ['authorId'], '{{%users}}', ['id'], null, 'CASCADE');
+        $this->addForeignKey(null, '{{%support_tickets}}', ['recipientId'], '{{%users}}', ['id'], null, 'CASCADE');
+
+        if (Craft::$app->getPlugins()->isPluginInstalled('commerce')) {
+            $this->addForeignKey(null, '{{%support_tickets}}', ['orderId'], '{{%commerce_orders}}', ['id'], null, 'CASCADE');
+        }
 
         $this->addForeignKey(null, '{{%support_ticketstatus_emails}}', ['emailId'], '{{%support_emails}}', ['id'], 'CASCADE', 'CASCADE');
         $this->addForeignKey(null, '{{%support_ticketstatus_emails}}', ['ticketStatusId'], '{{%support_ticketstatuses}}', ['id'], 'CASCADE', 'CASCADE');
+
+        $this->addForeignKey(null, '{{%support_answers}}', ['id'], '{{%elements}}', ['id'], 'CASCADE');
+        $this->addForeignKey(null, '{{%support_answers}}', ['authorId'], '{{%users}}', ['id'], null, 'CASCADE');
     }
 
     protected function dropForeignKeys()
@@ -190,6 +222,10 @@ class Install extends Migration
         $this->dropTable('{{%support_tickets}}');
         $this->dropTable('{{%support_ticketstatuses}}');
         $this->dropTable('{{%support_ticketstatus_emails}}');
+        $this->dropTable('{{%support_answers}}');
+
+        $contentTable = Craft::$app->getContent()->contentTable;
+        $this->dropColumn($contentTable, 'support_answer_text');
     }
 
     protected function insertDefaultData()
@@ -202,6 +238,8 @@ class Install extends Migration
 
     private function _defaultTicketStatuses()
     {
+        $mailSettings = AppHelper::mailSettings();
+
         // Default ticket statuses
         $data = [
             'name'      => 'New',
@@ -250,7 +288,7 @@ class Install extends Migration
             'name'          => 'New Ticket',
             'subject'       => LitEmoji::unicodeToShortcode('[📥 New Support Ticket] {title} (#{id})'),
             'recipientType' => 'custom',
-            'to'            => Craft::$app->systemSettings->getSetting('email', 'fromEmail'),
+            'to'            => $mailSettings->fromEmail,
             'templatePath'  => 'support/_emails/newTicket',
             'sortOrder'     => 1,
             'enabled'       => true,
@@ -261,7 +299,7 @@ class Install extends Migration
             'name'          => 'New Message',
             'subject'       => LitEmoji::unicodeToShortcode('[📥 New Message] {title} (#{id})'),
             'recipientType' => 'custom',
-            'to'            => Craft::$app->systemSettings->getSetting('email', 'fromEmail'),
+            'to'            => $mailSettings->fromEmail,
             'templatePath'  => 'support/_emails/newMessage',
             'sortOrder'     => 2,
             'enabled'       => true,
@@ -272,7 +310,7 @@ class Install extends Migration
             'name'          => 'Ticket Closed',
             'subject'       => LitEmoji::unicodeToShortcode('[📕 Ticket Closed] {title} (#{id})'),
             'recipientType' => 'custom',
-            'to'            => Craft::$app->systemSettings->getSetting('email', 'fromEmail'),
+            'to'            => $mailSettings->fromEmail,
             'templatePath'  => 'support/_emails/ticketClosed',
             'sortOrder'     => 3,
             'enabled'       => true,

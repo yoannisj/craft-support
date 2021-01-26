@@ -18,7 +18,7 @@ class Email extends ActiveRecord
     // =========================================================================
 
     const TYPE_AUTHOR = 'author';
-
+    const TYPE_RECIPIENT = 'recipient';
     const TYPE_CUSTOM = 'custom';
 
     // Public Methods

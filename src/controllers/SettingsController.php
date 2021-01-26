@@ -14,6 +14,7 @@ use lukeyouell\support\Support;
 
 use Craft;
 use craft\web\Controller;
+use craft\helpers\App as AppHelper;
 
 use yii\base\InvalidConfigException;
 use yii\web\NotFoundHttpException;
@@ -40,8 +41,10 @@ class SettingsController extends Controller
 
     public function actionIndex()
     {
-        $systemEmail = Craft::$app->systemSettings->getSetting('email', 'fromEmail');
-        $systemSender = Craft::$app->systemSettings->getSetting('email', 'fromName');
+        $mailSettings = AppHelper::mailSettings();
+        $systemEmail = $mailSettings->fromEmail;
+        $systemSender = $mailSettings->fromName;
+
         $settings = $this->settings;
         $plugin = Support::$plugin;
         $overrides = Craft::$app->getConfig()->getConfigFromFile(strtolower($plugin->handle));

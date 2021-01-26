@@ -116,7 +116,17 @@
       value:   1,
       checked: ticketStatus.newMessage,
       errors:  ticketStatus.getErrors('newMessage')
-  })}}
+  }) }}
+
+  {% if craft.app.plugins.isPluginEnabled('commerce') %}
+    {{ forms.checkboxField({
+        label:   'Tickets get this status when they are linked to a commerce Order which was permanently deleted',
+        name:    'legacy',
+        value:   1,
+        checked: ticketStatus.legacy,
+        errors:  ticketStatus.getErrors('legacy')
+    }) }}
+  {% endif %}
 
 {% endblock %}
 

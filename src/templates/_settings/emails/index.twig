@@ -27,7 +27,14 @@
             {{ email.subject }}
           </td>
           <td data-title="To">
-            {{ email.to ?: 'Author' }}
+            {% switch email.recipientType %}
+              {% case 'recipient' %}
+                {{ 'Recipient' | t('support') }}
+              {% case 'author' %}
+                {{ 'Author' | t('support') }}
+              {% case 'custom' %}
+                {{ email.to }}
+            {% endswitch %}
           </td>
           <td data-title="Bcc">
             {{ email.bcc }}

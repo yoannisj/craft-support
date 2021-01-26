@@ -60,6 +60,7 @@ class MessagesController extends Controller
                 if (!$message) {
                     Craft::$app->getSession()->setError('Couldn’t send the message.');
                 } else {
+
                     // Change ticket status if one exists with this enabled
                     $newStatus = Support::getInstance()->ticketStatusService->getNewMessageTicketStatus();
 
