@@ -138,17 +138,6 @@ class Support extends Plugin
             $this->initCommerce();
         }
 
-        // Do something after we're installed
-        Event::on(
-            Plugins::class,
-            Plugins::EVENT_AFTER_INSTALL_PLUGIN,
-            function (PluginEvent $event) {
-                if ($event->plugin === $this) {
-                    Craft::$app->getResponse()->redirect(UrlHelper::cpUrl('settings/plugins/support'))->send();
-                }
-            }
-        );
-
         Craft::info(
             Craft::t(
                 'support',
@@ -166,6 +155,20 @@ class Support extends Plugin
             'ticketStatusService' => \lukeyouell\support\services\TicketStatusService::class,
             'answerService' => \lukeyouell\support\services\AnswerService::class,
         ]);
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function afterInstall()
+    {
+        if (Craft::$app->getRequest()->getIsConsoleRequest()) {
+            return;
+        }
+
+        Craft::$app->controller->redirect(
+            UrlHelper::cpUrl('settings/plugins/support')
+        )->send();
     }
 
     public function getCpNavItem()
