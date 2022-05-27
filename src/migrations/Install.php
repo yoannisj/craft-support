@@ -120,14 +120,14 @@ class Install extends Migration
             $this->createTable(
                 '{{%support_tickets}}',
                 [
-                    'id'             => $this->primaryKey(),
-                    'dateCreated'    => $this->dateTime()->notNull(),
-                    'dateUpdated'    => $this->dateTime()->notNull(),
-                    'uid'            => $this->uid(),
+                    'id' => $this->primaryKey(),
+                    'dateCreated' => $this->dateTime()->notNull(),
+                    'dateUpdated' => $this->dateTime()->notNull(),
+                    'uid' => $this->uid(),
                     // Custom columns in the table
                     'ticketStatusId' => $this->integer(),
-                    'authorId'       => $this->integer(),
-                    'recipientId'    => $this->integer(),
+                    'authorId' => $this->integer(),
+                    'recipientId' => $this->integer(),
                 ]
             );
 
@@ -139,18 +139,19 @@ class Install extends Migration
             $this->createTable(
                 '{{%support_ticketstatuses}}',
                 [
-                    'id'          => $this->primaryKey(),
+                    'id' => $this->primaryKey(),
                     'dateCreated' => $this->dateTime()->notNull(),
                     'dateUpdated' => $this->dateTime()->notNull(),
-                    'uid'         => $this->uid(),
+                    'uid' => $this->uid(),
                     // Custom columns in the table
-                    'name'        => $this->string()->notNull(),
-                    'handle'      => $this->string()->notNull(),
-                    'colour'      => $this->enum('colour', ['green', 'orange', 'red', 'blue', 'yellow', 'pink', 'purple', 'turquoise', 'light', 'grey', 'black'])->notNull()->defaultValue('green'),
-                    'sortOrder'   => $this->integer(),
-                    'default'     => $this->boolean(),
-                    'newMessage'  => $this->boolean(),
-                ]
+                    'name' => $this->string()->notNull(),
+                    'handle' => $this->string()->notNull(),
+                    'colour' => $this->enum('colour', ['green', 'orange', 'red', 'blue', 'yellow', 'pink', 'purple', 'turquoise', 'light', 'grey', 'black'])->notNull()->defaultValue('green'),
+                    'sortOrder' => $this->integer(),
+                    'default' => $this->boolean(),
+                    'newMessage' => $this->boolean(),
+                    'legacy' => $this->boolean(),
+                ],
             );
 
             $this->createTable(
@@ -196,7 +197,8 @@ class Install extends Migration
         $this->addForeignKey(null, '{{%support_tickets}}', ['authorId'], '{{%users}}', ['id'], null, 'CASCADE');
         $this->addForeignKey(null, '{{%support_tickets}}', ['recipientId'], '{{%users}}', ['id'], null, 'CASCADE');
 
-        if (Craft::$app->getPlugins()->isPluginInstalled('commerce')) {
+        if (Craft::$app->getPlugins()->isPluginInstalled('commerce'))
+        {
             $this->addForeignKey(null, '{{%support_tickets}}', ['orderId'], '{{%commerce_orders}}', ['id'], null, 'CASCADE');
         }
 
