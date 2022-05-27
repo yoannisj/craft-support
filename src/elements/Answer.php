@@ -209,51 +209,51 @@ class Answer extends Element
         return Craft::$app->getUser()->checkPermission('supports-manageAnswers');
     }
 
-    /**
-     * @inheritdoc
-     */
+    // /**
+    //  * @inheritdoc
+    //  */
 
-    public function getEditorHtml(): string
-    {
-        $view = Craft::$app->getView();
+    // public function getEditorHtml(): string
+    // {
+    //     $view = Craft::$app->getView();
 
-        $html = '';
+    //     $html = '';
 
-        // add 'Title' field to editor HUD
-        // (added after message field so both are included at the editor's top, in reversed order)
-        $html .= $view->renderTemplateMacro('_includes/forms', 'textField', [
-            [
-                'label' => Craft::t('app', 'Title'),
-                'id' => 'title',
-                'name' => 'title',
-                'value' => $this->title,
-                'errors' => $this->getErrors('title'),
-                'first' => true,
-                'autofocus' => true,
-                'required' => true
-            ]
-        ]);
+    //     // add 'Title' field to editor HUD
+    //     // (added after message field so both are included at the editor's top, in reversed order)
+    //     $html .= $view->renderTemplateMacro('_includes/forms', 'textField', [
+    //         [
+    //             'label' => Craft::t('app', 'Title'),
+    //             'id' => 'title',
+    //             'name' => 'title',
+    //             'value' => $this->title,
+    //             'errors' => $this->getErrors('title'),
+    //             'first' => true,
+    //             'autofocus' => true,
+    //             'required' => true
+    //         ]
+    //     ]);
 
-        // add 'Message' field to editor HUD
-        $html .= $view->renderTemplateMacro('_includes/forms', 'textareaField', [
-            [
-                'label' => 'Message',
-                'siteId' => $this->siteId,
-                'id' => 'text',
-                'name' => 'text',
-                'value' => $this->text,
-                'errors' => $this->getErrors('text'),
-                'first' => true,
-                'autofocus' => false,
-                'required' => true,
-                'rows' => 6,
-            ]
-        ]);
+    //     // add 'Message' field to editor HUD
+    //     $html .= $view->renderTemplateMacro('_includes/forms', 'textareaField', [
+    //         [
+    //             'label' => 'Message',
+    //             'siteId' => $this->siteId,
+    //             'id' => 'text',
+    //             'name' => 'text',
+    //             'value' => $this->text,
+    //             'errors' => $this->getErrors('text'),
+    //             'first' => true,
+    //             'autofocus' => false,
+    //             'required' => true,
+    //             'rows' => 6,
+    //         ]
+    //     ]);
 
-        $html .= parent::getEditorHtml();
+    //     $html .= parent::getEditorHtml();
 
-        return $html;
-    }
+    //     return $html;
+    // }
 
     /**
      * @inheritdoc
