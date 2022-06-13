@@ -14,6 +14,7 @@ use lukeyouell\support\Support;
 
 use Craft;
 use craft\web\Controller;
+use craft\helpers\ArrayHelper;
 
 use yii\base\InvalidConfigException;
 
@@ -41,37 +42,27 @@ class MessagesController extends Controller
     {
         $this->requirePostRequest();
 
+        $supportPlugin = Support::getInstance();
         $request = Craft::$app->getRequest();
-        $ticketId = Craft::$app->security->validateData($request->post('ticketId'));
-        $messageVal = $request->post('message');
+        $params = $request->getBodyParams();
 
-        if (!$messageVal) {
-            Craft::$app->getSession()->setError('Message field is required.');
-        } else {
-            // First check ticket exists
-            $ticket = Support::getInstance()->ticketService->getTicketById($ticketId);
+        // Validate ticketId
+        $ticketId = Craft::$app->security->validateData(ArrayHelper::getValue($params, 'ticketId'));
+        $params = array_merge([], $params, [ 'ticketId' => $ticketId ]);
 
-            if (!$ticket) {
-                Craft::$app->getSession()->setError('Couldn’t find the ticket.');
-            } else {
-                // Ticket exists, now create message
-                $message = Support::getInstance()->messageService->createMessage($ticket->id, $request);
+        $message = $supportPlugin->messageService->createMessage($params);
 
-                if (!$message) {
-                    Craft::$app->getSession()->setError('Couldn’t send the message.');
-                } else {
+        if (!$message || $message->hasErrors())
+        {
+            Craft::$app->getSession()->setError('Couldn’t send the message.');
+            Craft::$app->getUrlManager()->setRouteParams([
+                'message' => $message,
+            ]);
 
-                    // Change ticket status if one exists with this enabled
-                    $newStatus = Support::getInstance()->ticketStatusService->getNewMessageTicketStatus();
-
-                    if ($newStatus->id) {
-                        Support::getInstance()->ticketService->changeTicketStatus($ticket, $newStatus->id);
-                    }
-
-                    Craft::$app->getSession()->setNotice('Message sent.');
-                }
-            }
+            return null;
         }
+
+        Craft::$app->getSession()->setNotice('Message sent.');
 
         return $this->redirectToPostedUrl();
     }

@@ -16,6 +16,7 @@ use lukeyouell\support\elements\db\MessageQuery;
 
 use Craft;
 use craft\base\Component;
+use craft\helpers\ArrayHelper;
 
 class MessageService extends Component
 {
@@ -46,27 +47,38 @@ class MessageService extends Component
         return null;
     }
 
-    public function createMessage($ticketId = null, $submission = null)
+    public function createMessage(array $params = [], bool $updateTicket = true)
     {
-        if ($ticketId and $submission)
-        {
-            $message = new Message();
-            $message->ticketId = $ticketId;
-            $message->authorId = Craft::$app->getUser()->getIdentity()->id;
-            $message->attachmentIds = $submission->post('attachments') ? implode(',', $submission->post('attachments')) : null;
-            $message->content = $submission->post('message');
+        $craftElements = Craft::$app->getElements();
+        $supportPlugin = Support::getInstance();
 
-            $res = Craft::$app->getElements()->saveElement($message, true, false);
+        $message = new Message();
 
-            if ($res) {
-                // Save ticket to update the 'dateUpdated' value
-                Support::getInstance()->ticketService->saveTicketById($ticketId);
+        // populate message with param values
+        $message->ticketId = ArrayHelper::getValue($params, 'ticketId');
+        $message->content = ArrayHelper::getValue($params, 'message');
+        $message->ticketId = ArrayHelper::getValue($params, 'ticketId');
+        $message->authorId = (ArrayHelper::getValue($params, 'authorId') ?:
+            Craft::$app->getUser()->getIdentity()->id);
 
-                return $message;
+        $attachments = ArrayHelper::getValue($params, 'attachments');
+        $message->attachmentIds = $attachments ? implode(',', $attachments) : null;
+
+        $success = $craftElements->saveElement($message, true, false);
+
+        if ($success && $updateTicket && ($ticket = $message->getTicket()))
+        {            
+            // Change ticket status if one exists with this enabled
+            $newStatus = $supportPlugin->ticketStatusService->getNewMessageTicketStatus();
+
+            if ($newStatus && $newStatus->id) { // will save ticket and update the 'dateUpdated' value
+                $supportPlugin->ticketService->changeTicketStatus($ticket, $newStatus->id);
+            } else {
+                Craft::$app->getElements()->saveElement($ticket); // save to update the 'dateUpdated' value
             }
         }
 
-        return null;
+        return $message;
     }
 
     public function deleteMessage($messageId = null)

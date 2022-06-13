@@ -13,11 +13,15 @@ namespace lukeyouell\support\elements;
 use lukeyouell\support\Support;
 use lukeyouell\support\elements\db\TicketQuery;
 
+use yii\validators\InlineValidator;
+
 use Craft;
 use craft\base\Element;
 use craft\elements\actions\Delete;
 use craft\elements\db\ElementQueryInterface;
 use craft\helpers\UrlHelper;
+
+use craft\commerce\elements\Order;
 
 use yii\base\Exception;
 use yii\base\InvalidConfigException;
@@ -66,6 +70,11 @@ class Ticket extends Element
      */
 
     private $_order;
+
+    /**
+     * @var bool
+     */
+    protected $isNormalizedOrder = false;
 
     /**
      * @var int
@@ -394,6 +403,8 @@ class Ticket extends Element
             $this->_deletedOrderReference = null;
         }
 
+        $this->isNormalizedOrder = false;
+
         return $this;
     }
 
@@ -427,6 +438,8 @@ class Ticket extends Element
         {
             $this->_order = null;
         }
+
+        $this->isNormalizedOrder = false;
 
         return $this;
     }
@@ -476,6 +489,8 @@ class Ticket extends Element
     {
         $rules = parent::rules();
 
+        $rules['orderReferenceFound'] = [ ['orderId', 'orderReference'], 'validateOrderReference' ];
+
         // the order validation method will set default recipient to order customer user id
         if (Craft::$app->getPlugins()->isPluginEnabled('commerce')) {
             $rules['orderForRecipient'] = [ 'order', 'validateOrderForRecipient' ];
@@ -489,10 +504,28 @@ class Ticket extends Element
     }
 
     /**
+     * 
+     */
+
+    public function validateOrderReference($attribute, $params, InlineValidator $validator )
+    {
+        $order = $this->order;
+
+        if (!$order)
+        {
+            $message = Craft::t('support', "Could not find order for ticket's {attribute}.", [
+                'attribute' => $attribute
+            ]);
+
+            $this->addError($attribute, $message);
+        }
+    }
+
+    /**
      *
      */
 
-    public function validateOrderForRecipient( $attribute, $params, \yii\validators\InlineValidator $validator )
+    public function validateOrderForRecipient( $attribute, $params, InlineValidator $validator )
     {
         $order = $this->$attribute;
 
@@ -642,20 +675,20 @@ class Ticket extends Element
 
     public function getOrder()
     {
-        if (!isset($this->_order))
+        if (!$this->isNormalizedOrder)
         {
             $order = null;
 
             if (Craft::$app->getPlugins()->isPluginInstalled('commerce')
                 && ($this->_orderId || $this->_orderReference))
             {
-                $orderQuery = \craft\commerce\elements\Order::find();
-                $orderQuery->id = $this->_orderId;
-                $orderQuery->reference = $this->_orderReference;
-
+                $orderQuery = Order::find();
+                if ($this->_orderId) $orderQuery->id($this->_orderId);
+                else if ($this->_orderReference) $orderQuery->reference($this->_orderReference);
                 $order = $orderQuery->one();
             }
 
+            $this->isNormalizedOrder = true;
             $this->_order = $order;
         }
 

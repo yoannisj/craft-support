@@ -14,8 +14,9 @@ use lukeyouell\support\Support;
 
 use Craft;
 use craft\elements\Asset;
-use craft\helpers\Template;
 use craft\web\Controller;
+use craft\errors\ElementNotFoundException;
+use craft\helpers\Template;
 use craft\helpers\ArrayHelper;
 
 use yii\base\InvalidConfigException;
@@ -109,56 +110,46 @@ class TicketsController extends Controller
         $this->requirePostRequest();
         $this->requireLogin();
 
+        $supportPlugin = Support::getInstance();
         $request = Craft::$app->getRequest();
 
-        $supportPlugin = Support::getInstance();
-        $settings = $supportPlugin->getSettings();
-
         // First create ticket
-        $ticket = $supportPlugin->ticketService->createTicket($request);
-        $message = $request->post('message');
+        $params = $request->getBodyParams();
+        $ticket = $supportPlugin->ticketService->createTicket($params);
 
-        $success = Craft::$app->getElements()->saveElement($ticket, true, false);
-
-        // require a ticket message upon creation
-        if (empty($message))
+        if (!$ticket || $ticket->hasErrors())
         {
-            $ticket->addError('message', Craft::t('support', 'Message can not be empty.'));
-            $success = false;
-        }
-
-        if (!$success)
-        {
-            if ($request->getAcceptsJson()) {
+            if ($request->getAcceptsJson())
+            {
                 return $this->asJson([
                     'success' => false,
+                    'ticket' => $ticket,
                 ]);
             }
 
             Craft::$app->getSession()->setError('Couldn’t create the ticket.');
             Craft::$app->getUrlManager()->setRouteParams([
                 'ticket' => $ticket,
+                'message' => ArrayHelper::getValue($params, 'message'), // preserve message in template
+            ]);
+
+            return null;
+        }
+
+        // Handle email notification after message is created
+        if ($ticket->ticketStatus->emails) {
+            $supportPlugin->mailService->handleEmail($ticket->id);
+        }
+
+        if ($request->getAcceptsJson())
+        {
+            return $this->asJson([
+                'success' => true,
+                'ticket' => $ticket,
             ]);
         }
 
-        else
-        {
-            // Ticket created, now create message but don't change ticket status id
-            $message = $supportPlugin->messageService->createMessage($ticket->id, $request, false);
-
-            // Handle email notification after message is created
-            if ($ticket->ticketStatus->emails) {
-                $supportPlugin->mailService->handleEmail($ticket->id);
-            }
-
-            if ($request->getAcceptsJson()) {
-                return $this->asJson([
-                    'success' => true,
-                ]);
-            }
-
-            Craft::$app->getSession()->setNotice('Ticket created.');
-        }
+        Craft::$app->getSession()->setNotice('Ticket created.');
 
         return $this->redirectToPostedUrl();    
     }

@@ -16,7 +16,10 @@ use lukeyouell\support\elements\db\TicketQuery;
 
 use Craft;
 use craft\base\Component;
+use craft\errors\ElementNotFoundException;
 use craft\helpers\ArrayHelper;
+
+use craft\commerce\elements\Order;
 
 use yii\base\InvalidConfigException;
 use yii\web\NotFoundHttpException;
@@ -27,55 +30,60 @@ class TicketService extends Component
     // Public Methods
     // =========================================================================
 
-    public function createTicket( $submission = null, bool $validate = false )
+    public function createTicket( array $params )
     {
-        if ($submission)
+        $supportPlugin = Support::getInstance();
+        $defaultTicketStatus = $supportPlugin->ticketStatusService->getDefaultTicketStatus();
+
+        $ticket = new Ticket();
+        $ticket->ticketStatusId = ArrayHelper::getValue($defaultTicketStatus, 'id');
+        $ticket->title = ArrayHelper::getValue($params, 'title');
+
+        // get author info
+        $authorId = (ArrayHelper::getValue($params, 'authorId') ?:
+            ArrayHelper::getValue($params, 'author.id') ?:
+            Craft::$app->getUser()->getIdentity()->id);
+
+        if (is_array($authorId)) $authorId = ArrayHelper::firstValue($authorId);
+        $ticket->authorId = $authorId;
+
+        // get recipient info
+        $recipientId = ArrayHelper::getValue($params, 'recipientId');
+        if ($recipientId)
         {
-          $defaultTicketStatus = Support::getInstance()->ticketStatusService->getDefaultTicketStatus();
-
-          $ticket = new Ticket();
-          $ticket->ticketStatusId = $defaultTicketStatus['id'];
-          $ticket->title = $submission->post('title');
-
-          // get author info
-          $userSession = Craft::$app->getUser();
-
-          if ($userSession->isGuest) {
-            // redirect user to log-in (passes current url as login's returnUrl)
-            $userSession->loginRequired();
-            Craft::$app->end();
-          }          
-
-          $ticket->authorId = $userSession->getIdentity()->id;
-          
-          // get recipient info
-          $recipientId = $submission->post('recipientId');
-          if ($recipientId)
-          {
-            if (is_array($recipientId)) {
-                $recipientId = ArrayHelper::firstValue($recipientId);
-            }
-
-            $ticket->recipientId = $recipientId;
-          }
-
-          // get commerce info
-          $this->populateCommerceFields($ticket);
-
-          Craft::error('AUTHOR ID: ' . $ticket->authorId);
-          Craft::error('RECIPIENT ID: ' . $ticket->recipientId);
-          Craft::error('ORDER ID: ' . $ticket->orderId.' ('. ($ticket->order->customerId ?? null).')');
-          Craft::error('CUSTOMER ID: ' . ($ticket->getCustomer()->id ?? null));
-
-          // recipient defaults to author created on the front-end without linking to an order
-          if (!$ticket->recipientId && $submission->getIsSiteRequest()) {
-            $ticket->recipientId = $ticket->authorId;
-          }
-
-          return $ticket;
+            $ticket->recipientId = (is_array($recipientId) ?
+                ArrayHelper::firstValue($recipientId) : $recipientId);
         }
 
-        return null;
+        // populate with commerce info (will link order and set default recipient)
+        $this->populateCommerceFields($ticket, $params);
+
+        // unless linked to an order, recipient defaults to author created on the front-end
+        if (!$ticket->recipientId && Craft::$app->getRequest()->getIsSiteRequest()) {
+            $ticket->recipientId = $ticket->authorId;
+        }
+
+        // Save newly created ticket (gives it an ID)
+        $success = Craft::$app->getElements()->saveElement($ticket, true, false);
+
+        // Ticket created, now create message but don't change ticket status id
+        if ($success)
+        {
+            // create required first message from params
+            $messageParams = array_merge([], $params, [
+                'ticketId' => $ticket->id,
+                'authorId' => $ticket->authorId,
+            ]);
+
+            $message = $supportPlugin->messageService->createMessage($messageParams, false);
+            if (!$message)
+            {
+                $ticket->addError('messages',
+                    Craft::t('support', 'New ticket must have a non-empty first message.'));
+            }
+        }
+
+        return $ticket;
     }
 
     public function getTicketById($ticketId = null)
@@ -87,8 +95,10 @@ class TicketService extends Component
         if ($ticketId)
         {
             $query = new TicketQuery(Ticket::class);
-            $query->id = $ticketId;
-            $query->authorId = $canManageTickets ? null : $userId;
+            $query->id($ticketId);
+
+            // limit visible tickets for non-admins
+            if (!$canManageTickets) $query->recipientId($userId);
 
             return $query->one();
         }
@@ -96,23 +106,28 @@ class TicketService extends Component
         return null;
     }
 
-    public function changeTicketStatus($ticket = null, $ticketStatusId = null)
+    public function changeTicketStatus($ticket = null, $newStatus = null)
     {
-        if ($ticket->id && $ticketStatusId)
+        if (!$ticket || !$ticket->id) return false;
+
+        $supportPlugin = Support::getInstance();
+
+        if (is_numeric($newStatus)) {
+            $newStatus = $supportPlugin->ticketStatusService->getTicketStatusById($newStatus);
+        }
+
+        if (!$newStatus || !$newStatus->id) {
+            throw new NotFoundHttpException('Ticket status not found');
+        }
+
+        $ticket->ticketStatusId = $newStatus->id;
+        $success = Craft::$app->getElements()->saveElement($ticket, false);
+
+        if ($success)
         {
-            $status = Support::getInstance()->ticketStatusService->getTicketStatusById($ticketStatusId);
-
-            if (!$status->id) {
-                throw new NotFoundHttpException('Ticket status not found');
-            }
-
-            $ticket->ticketStatusId = $status->id;
-
-            Craft::$app->getElements()->saveElement($ticket, false);
-
             // Handle ticket status emails after saving ticket
-            if ($status->emails) {
-                Support::getInstance()->mailService->handleEmail($ticket->id);
+            if ($newStatus->emails) {
+                $supportPlugin->mailService->handleEmail($ticket->id);
             }
 
             return true;
@@ -127,7 +142,6 @@ class TicketService extends Component
         {
             $query = new TicketQuery(Ticket::class);
             $query->id = $ticketId;
-
             $ticket = $query->one();
 
             if ($ticket)
@@ -144,25 +158,22 @@ class TicketService extends Component
      *
      */
 
-    public function populateCommerceFields( Ticket &$ticket )
+    public function populateCommerceFields( Ticket &$ticket, array $params = [] )
     {
         if (!Craft::$app->getPlugins()->isPluginEnabled('commerce')) {
             return;
         }
 
         $commerce = Craft::$app->getPlugins()->getPlugin('commerce');
-        $request = Craft::$app->getRequest();
 
         // get order data
-        $orderId = $request->getBodyParam('orderId');
-        $orderReference = $request->getBodyParam('orderReference');
+        $orderId = ArrayHelper::getValue($params, 'orderId');
+        $orderReference = ArrayHelper::getValue($params, 'orderReference');
         $order = null;
 
         if (is_array($orderId)) {
             $orderId = ArrayHelper::firstValue($orderId);
-        }
-
-        if (is_array($orderReference)) {
+        } else if (is_array($orderReference)) {
             $orderReference = ArrayHelper::firstValue($orderReference);
         }
 
@@ -171,17 +182,13 @@ class TicketService extends Component
 
         if (!empty($orderId) || !empty($orderReference))
         {
-            $orderQuery = \craft\commerce\elements\Order::find();
-            $orderQuery->id = $orderId;
-            $orderQuery->reference = $orderReference;
+            $ticket->orderId = $orderId;
+            $ticket->orderReference = $orderReference;
+
+            $orderQuery = Order::find();
+            if (!empty($orderId)) $orderQuery->id($orderId);
+            else if (!empty($orderReference)) $orderQuery->reference($orderReference);
             $order = $orderQuery->one();
-
-            if (!$order) {
-                throw new NotFoundHttpException('Could not find order with reference ' . $orderReference);
-            }
-
-            $ticket->orderId = $order->id;
-            $ticket->orderReference = $order->reference;
         }
 
         // get customer data
@@ -191,11 +198,10 @@ class TicketService extends Component
             $customer = $commerce->customers->getCustomerByUserId($ticket->recipientId);
         } else if ($order) {
             $customer = $order->getCustomer();
-        } else if ($request->getIsSiteRequest()) {
+        } else if (Craft::$app->getRequest()->getIsSiteRequest()) {
             $customer = $commerce->customers->getCustomer();
         }
 
-        if ($order) $ticket->orderId = $order->id;
         if ($customer) $ticket->recipientId = $customer->userId;
     }
 }

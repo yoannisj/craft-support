@@ -246,7 +246,7 @@ class TicketQuery extends ElementQuery
     protected function parseElementIdCriteria( string $elementType, string $name, $value )
     {
         $value = $this->parseElementIdCriteriaValue($elementType, $name, $value);
-        $this->$name = $vaue;
+        $this->$name = $value;
     }
 
     /**

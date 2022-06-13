@@ -13,6 +13,8 @@ namespace lukeyouell\support\elements;
 use lukeyouell\support\Support;
 use lukeyouell\support\elements\db\MessageQuery;
 
+use yii\validators\InlineValidator;
+
 use Craft;
 use craft\base\Element;
 use craft\elements\actions\Delete;
@@ -24,7 +26,11 @@ class Message extends Element
     // Public Properties
     // =========================================================================
 
-    public $ticketId;
+    private $_ticketId;
+
+    private $_ticket;
+    
+    protected $isNormalizedTicket = false;
 
     public $authorId;
 
@@ -84,10 +90,44 @@ class Message extends Element
         return (string)$this->id;
     }
 
+    public function attributes()
+    {
+        $attributes = parent::attributes();
+
+        $attributes[] = 'ticketId';
+
+        return $attributes;
+    }
+
+    public function setTicketId( $id )
+    {
+        $this->_ticketId = $id;
+        $this->isNormalizedTicket = false;
+    }
+
+    public function getTicketId()
+    {
+        return $this->_ticketId;
+    }
+
+    public function getTicket()
+    {
+        if (!$this->isNormalizedTicket)
+        {
+            $this->_ticket = ($this->ticketId ? Support::getInstance()->ticketService
+                ->getTicketById($this->ticketId) : null);
+            $this->isNormalizedTicket = true;
+        }
+
+        return $this->_ticket;
+    }
+
     public function extraFields()
     {
         $names = parent::extraFields();
+
         $names[] = 'author';
+
         return $names;
     }
 
@@ -106,6 +146,33 @@ class Message extends Element
         }
 
         return $this->_author;
+    }
+
+    // =Validation
+    // -------------------------------------------------------------------------
+
+    public function rules()
+    {
+        $rules = parent::rules();
+
+        $rules['ticketIdRequired'] = [ 'ticketId', 'required' ];
+        $rules['ticketFound'] = [ 'ticketId', 'validateTicketReference' ];
+        $rules['contentRequired'] = [ 'content', 'required' ];
+
+        return $rules;
+    }
+
+    public function validateTicketReference( $attribute, $params, InlineValidator $validator )
+    {
+        $ticket = $this->ticket;
+        if (!$ticket)
+        {
+            $message = Craft::t('support', 'Could not find Ticket for message‘s {attribute}', [
+                'attribuite' => $attribute
+            ]);
+
+            $this->addError($attribute, $message);
+        }
     }
 
     // Events
