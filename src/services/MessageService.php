@@ -58,8 +58,13 @@ class MessageService extends Component
         $message->ticketId = ArrayHelper::getValue($params, 'ticketId');
         $message->content = ArrayHelper::getValue($params, 'message');
         $message->ticketId = ArrayHelper::getValue($params, 'ticketId');
-        $message->authorId = (ArrayHelper::getValue($params, 'authorId') ?:
-            Craft::$app->getUser()->getIdentity()->id);
+        // Security: never trust a posted authorId. Use the logged-in user when
+        // there is one (web requests); only fall back to a passed authorId for
+        // headless/CLI callers with no identity. Prevents author spoofing.
+        $identity = Craft::$app->getUser()->getIdentity();
+        $message->authorId = $identity
+            ? $identity->id
+            : ArrayHelper::getValue($params, 'authorId');
 
         $attachments = ArrayHelper::getValue($params, 'attachments');
         $message->attachmentIds = $attachments ? implode(',', $attachments) : null;

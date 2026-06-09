@@ -17,6 +17,7 @@ use craft\web\Controller;
 use craft\helpers\ArrayHelper;
 
 use yii\base\InvalidConfigException;
+use yii\web\TooManyRequestsHttpException;
 
 class MessagesController extends Controller
 {
@@ -41,10 +42,17 @@ class MessagesController extends Controller
     public function actionNewMessage()
     {
         $this->requirePostRequest();
+        $this->requireLogin();
 
         $supportPlugin = Support::getInstance();
         $request = Craft::$app->getRequest();
         $params = $request->getBodyParams();
+
+        // Security: throttle message creation per user to prevent flooding/abuse.
+        $this->enforceMessageRateLimit();
+
+        // Security: never trust a posted authorId — force it to the logged-in user.
+        $params['authorId'] = Craft::$app->getUser()->getId();
 
         // Validate ticketId
         $ticketId = Craft::$app->security->validateData(ArrayHelper::getValue($params, 'ticketId'));
@@ -85,5 +93,38 @@ class MessagesController extends Controller
         }
 
         return $this->redirectToPostedUrl();
+    }
+
+    // Private Methods
+    // =========================================================================
+
+    /**
+     * Throttles message creation per authenticated user using the cache, to
+     * prevent a single account/session from flooding the support system
+     * (e.g. an automated vulnerability scanner). Tune the limits as needed.
+     *
+     * @throws TooManyRequestsHttpException
+     */
+    private function enforceMessageRateLimit()
+    {
+        $maxMessages = 8;   // max messages…
+        $window      = 60;  // …per this many seconds, per user
+
+        $userId = Craft::$app->getUser()->getId();
+        if (!$userId) {
+            return;
+        }
+
+        $cache = Craft::$app->getCache();
+        $cacheKey = ['support', 'message-rate-limit', $userId];
+        $count = (int)$cache->get($cacheKey);
+
+        if ($count >= $maxMessages) {
+            throw new TooManyRequestsHttpException(
+                Craft::t('support', 'You’re sending messages too quickly. Please wait a moment and try again.')
+            );
+        }
+
+        $cache->set($cacheKey, $count + 1, $window);
     }
 }
